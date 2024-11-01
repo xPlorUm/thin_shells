@@ -23,7 +23,7 @@ Viewer viewer;
 string PATH = "C:\\Users\\cedri\\source\\repos\\thin_shells\\data\\";
 
 
-string file = "bumpy_plane.off";
+string file = "woody-hi.off";
 
 //vertex array, #V x3
 Eigen::MatrixXd V(0, 3), V_original(0, 3);
@@ -160,7 +160,7 @@ bool load_mesh(string filename) {
 
 int main(int argc, char *argv[]) {
     if (argc != 2) {
-        cout << "Usage assignment5 mesh.off>" << endl;
+        cout << "Usage thin_shells mesh.off>" << endl;
         load_mesh(PATH + file);
     } else {
         load_mesh(argv[1]);
@@ -171,6 +171,8 @@ int main(int argc, char *argv[]) {
     igl::opengl::glfw::imgui::ImGuiMenu menu;
     plugin.widgets.push_back(&menu);
 
+
+    //define the User Interface
     menu.callback_draw_viewer_menu = [&]() {
         // Draw parent menu content
         menu.draw_viewer_menu();
@@ -206,6 +208,8 @@ int main(int argc, char *argv[]) {
         }
     };
 
+
+    //define callback functions of keys
     viewer.callback_key_down = callback_key_down;
     viewer.callback_mouse_down = callback_mouse_down;
     viewer.callback_mouse_move = callback_mouse_move;
