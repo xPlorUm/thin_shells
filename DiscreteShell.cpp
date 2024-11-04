@@ -63,17 +63,17 @@ double DiscreteShell::computeTotalEnergy() {
     return energy;
 }
 
-// Add bending energy
+// TODO Add bending energy
 void DiscreteShell::addShellBendingEnergy(double& energy) {
     // Calculate bending energy based on deformed configuration
 }
 
-// Add bending force to residual
+// TODO Add bending force to residual
 void DiscreteShell::addShellBendingForce(Eigen::VectorXd& residual) {
     // Add bending forces to the residual vector
 }
 
-// Add bending Hessian (stiffness matrix entries)
+// TODO Add bending Hessian (stiffness matrix entries)
 void DiscreteShell::addShellBendingHessian(Eigen::SparseMatrix<double>& K) {
     // Populate the stiffness matrix K with bending Hessian entries
 }

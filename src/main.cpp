@@ -23,7 +23,7 @@ Viewer viewer;
 string PATH = "C:\\Users\\cedri\\source\\repos\\thin_shells\\data\\";
 
 
-string file = "woody-hi.off";
+string file = "paper-plane.off";
 
 //vertex array, #V x3
 Eigen::MatrixXd V(0, 3), V_original(0, 3);
