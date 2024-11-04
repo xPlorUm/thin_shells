@@ -19,7 +19,8 @@ DiscreteShell::DiscreteShell()
 // Might do away with this and just pass in the mesh from main
 void DiscreteShell::initializeFromFile(const std::string& filename) {
     // Load mesh (vertices and faces)
-    igl::readOBJ(filename, undeformed, faces); 
+    Eigen::MatrixXd F;
+    igl::readOBJ(filename, undeformed, F);
     deformed = undeformed;
     vn = Eigen::VectorXd::Zero(deformed.size()); // Initial velocity
     xn = undeformed; // Initial previous position
