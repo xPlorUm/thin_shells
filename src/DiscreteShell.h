@@ -7,15 +7,16 @@
 class DiscreteShell {
 public:
     // Constructor
-    DiscreteShell();
-
-    // Initialize from an OBJ file
-    void initializeFromFile(const std::string& filename);
+    DiscreteShell::DiscreteShell();
+    void initializeMesh(const Eigen::MatrixXd& V, const Eigen::MatrixXd& F);
 
     // Advance one time step
     bool advanceOneStep(int step);
 
 private:
+    // Numerical stability
+    double Epsilon = 1e-4;
+
     // Physical properties
     double dt; // Time step
     double simulation_duration; // Total simulation duration
@@ -46,7 +47,6 @@ private:
     // Helper function to build system matrix
     void buildSystemMatrix(Eigen::SparseMatrix<double>& K);
 
-    double Epsilon = 1e-4; // for numerical stability
 };
 
 #endif // DISCRETE_SHELL_H

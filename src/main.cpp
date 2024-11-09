@@ -1,4 +1,5 @@
 #include <igl/read_triangle_mesh.h>
+#include <igl/readOBJ.h>
 #include <igl/opengl/glfw/Viewer.h>
 #include <igl/opengl/glfw/imgui/ImGuiMenu.h>
 #include <igl/opengl/glfw/imgui/ImGuiHelpers.h>
@@ -65,7 +66,8 @@ bool callback_pre_draw(Viewer& viewer);
 
 
 bool load_mesh(string filename) {
-    igl::read_triangle_mesh(filename, V, F);
+    //igl::read_triangle_mesh(filename, V, F);
+    igl::readOBJ(filename, V, F);
     viewer.data().clear();
     viewer.data().set_mesh(V, F);
 
@@ -99,7 +101,7 @@ int main(int argc, char* argv[]) {
 
 
     //initialize discrete shell
-    ds = DiscreteShell::DiscreteShell();
+    ds = DiscreteShell();
     //TODO initialize handle array
 
     //TODO initialize DiscreteShell with existing mesh

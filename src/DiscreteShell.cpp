@@ -5,7 +5,7 @@ Maybe we should change the function names since they're currently the same as th
 
 #include "DiscreteShell.h"
 #include <iostream>
-#include <igl/readOBJ.h>
+#include <autodiff/forward/dual/dual.hpp>
 
 // Constructor
 DiscreteShell::DiscreteShell()
@@ -15,21 +15,16 @@ DiscreteShell::DiscreteShell()
     // ChatGPT gave me these values idk
 }
 
-DiscreteShell::DiscreteShell(float dt, float simulation_duration, bending_stiffness, beta, gamma) {
-
-}
-
-// Initialize from an OBJ file
-// Might do away with this and just pass in the mesh from main
-void DiscreteShell::initializeFromFile(const std::string& filename) {
+// Initialize from given Vertex
+void DiscreteShell::initializeMesh(const Eigen::MatrixXd &V, const Eigen::MatrixXd &F) {
     // Load mesh (vertices and faces)
-    Eigen::MatrixXd F;
-    igl::readOBJ(filename, undeformed, F);
-    deformed = undeformed;
-    vn = Eigen::VectorXd::Zero(deformed.size()); // Initial velocity
-    xn = undeformed; // Initial previous position
-    u = Eigen::VectorXd::Zero(deformed.size()); // Initial displacement
-    external_force = Eigen::VectorXd::Zero(deformed.size()); // No external force initially
+    V_deformed = V;
+    V_undeformed = V;
+
+    vn = Eigen::VectorXd::Zero(V_deformed.size()); //initialize velocity vector
+    xn = V_undeformed; // Initial previous position
+    u = Eigen::VectorXd::Zero(V_deformed.size()); // Initial displacement
+    external_force = Eigen::VectorXd::Zero(V_deformed.size()); // No external force initially
 }
 
 // Advance one time step
@@ -53,9 +48,18 @@ bool DiscreteShell::advanceOneStep(int step) {
         return false;
     }
 
+    // given displacement increment du, dt, V_undeformed=xn
+    // calculate acceleration
+    // use auto differentiation?
+    //Eigen::VectorXd acceleration = K.inverse() * du;
+
     // Newmark Integration
-    deformed = xn + dt * vn + beta * dt * dt * du; // Position update
-    vn = vn + gamma * dt * du; // Velocity update
+    //V_deformed = xn + dt * vn + dt * dt * ((0.5 - beta) * acceleration + beta * (K * du));
+
+    // Velocity update
+    //vn = vn + dt * ((1 - gamma) * acceleration + gamma * (K * du));
+
+
     //TODO return deformed/Vnew to main program
 
     updateDynamicStates();
@@ -113,6 +117,6 @@ void DiscreteShell::buildSystemMatrix(Eigen::SparseMatrix<double>& K) {
 
 // Update dynamic states (velocity and previous position) after each time step
 void DiscreteShell::updateDynamicStates() {
-    vn = (deformed - xn) / dt; // Update velocity
-    xn = deformed; // Update previous position for the next time step
+    vn = (V_deformed - xn) / dt; // Update velocity
+    xn = V_deformed; // Update previous position for the next time step
 }
