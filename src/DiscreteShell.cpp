@@ -15,6 +15,10 @@ DiscreteShell::DiscreteShell()
     // ChatGPT gave me these values idk
 }
 
+DiscreteShell::DiscreteShell(float dt, float simulation_duration, bending_stiffness, beta, gamma) {
+
+}
+
 // Initialize from an OBJ file
 // Might do away with this and just pass in the mesh from main
 void DiscreteShell::initializeFromFile(const std::string& filename) {
@@ -52,6 +56,7 @@ bool DiscreteShell::advanceOneStep(int step) {
     // Newmark Integration
     deformed = xn + dt * vn + beta * dt * dt * du; // Position update
     vn = vn + gamma * dt * du; // Velocity update
+    //TODO return deformed/Vnew to main program
 
     updateDynamicStates();
     return (step * dt > simulation_duration); // End simulation after duration
@@ -83,21 +88,19 @@ void DiscreteShell::addShellBendingHessian(Eigen::SparseMatrix<double>& K) {
 // Here, you can experiment with different solvers by changing this function.
 // Thanks ChatGPT for the placeholder code
 bool DiscreteShell::linearSolve(Eigen::SparseMatrix<double>& K, const Eigen::VectorXd& residual, Eigen::VectorXd& du) {
-    // TODO: Choose and set up a solver here, based on your needs
-    // Example: Using Conjugate Gradient solver with placeholder code (replace with actual solver if desired)
 
-    // Eigen::ConjugateGradient<Eigen::SparseMatrix<double>, Eigen::Lower|Eigen::Upper> solver;
-    // solver.setTolerance(1e-8); // Adjust tolerance for convergence
-    // solver.compute(K);
-    // if (solver.info() != Eigen::Success) {
-    //     std::cout << "Solver initialization failed." << std::endl;
-    //     return false;
-    // }
-    // du = solver.solve(residual);
-    // if (solver.info() != Eigen::Success) {
-    //     std::cout << "Solver failed to converge." << std::endl;
-    //     return false;
-    // }
+     Eigen::ConjugateGradient<Eigen::SparseMatrix<double>, Eigen::Lower|Eigen::Upper> solver;
+     solver.setTolerance(Epsilon); // Adjust tolerance for convergence
+     solver.compute(K);
+     if (solver.info() != Eigen::Success) {
+         std::cout << "Solver initialization failed." << std::endl;
+         return false;
+     }
+     du = solver.solve(residual);
+     if (solver.info() != Eigen::Success) {
+         std::cout << "Solver failed to converge." << std::endl;
+         return false;
+     }
     
     // Placeholder return value; change this once the solver is implemented.
     return true;

@@ -140,5 +140,5 @@ bool callback_pre_draw(Viewer& viewer) {
     // set value of Mesh to V
     viewer.data().clear();
     viewer.data().set_mesh(V, F);
-    viewer.core().align_camera_center(V);
+    viewer.core().align_camera_center(V); // TODO delete for gravity
 }

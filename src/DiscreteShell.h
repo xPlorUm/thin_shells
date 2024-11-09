@@ -22,8 +22,8 @@ private:
     double bending_stiffness; // Stiffness for bending energy
 
     // State variables
-    Eigen::VectorXd deformed; // Deformed configuration (vertex positions)
-    Eigen::VectorXd undeformed; // Undeformed configuration (reference positions)
+    Eigen::MatrixXd V_deformed; // Deformed configuration (vertex positions)
+    Eigen::MatrixXd V_undeformed; // Undeformed configuration (reference positions)
     Eigen::VectorXd external_force; // External forces applied to the shell
     Eigen::VectorXd u; // Displacement vector
     Eigen::VectorXd vn; // Velocity vector
@@ -45,6 +45,8 @@ private:
 
     // Helper function to build system matrix
     void buildSystemMatrix(Eigen::SparseMatrix<double>& K);
+
+    double Epsilon = 1e-4; // for numerical stability
 };
 
 #endif // DISCRETE_SHELL_H
