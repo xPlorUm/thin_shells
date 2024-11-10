@@ -32,41 +32,31 @@ public:
         buildAdjacencyMatrix(); // Build adjacency matrix for face connectivity
     }
 
+    // Computes the normals for each face in the mesh
     void computeFaceNormals() {
         faceNormals.resize(faces.rows());
-
-        // Step 1: Compute the centroid of the entire mesh
-        Eigen::Vector3d meshCentroid = vertices.colwise().mean();
+        Eigen::Vector3d referenceNormal(0, 0, 1);  // Use the global up direction as reference
 
         for (int i = 0; i < faces.rows(); ++i) {
-            // Get vertices of the face
             Eigen::Vector3d v0 = vertices.row(faces(i, 0));
             Eigen::Vector3d v1 = vertices.row(faces(i, 1));
             Eigen::Vector3d v2 = vertices.row(faces(i, 2));
 
-            // Step 2: Calculate two edges of the face
+            // Calculate two edges of the face
             Eigen::Vector3d edge1 = v1 - v0;
             Eigen::Vector3d edge2 = v2 - v0;
-            
             // Cross product of edges gives the normal
-            Eigen::Vector3d normal = edge1.cross(edge2).normalized();
+            Eigen::Vector3d normal = edge1.cross(edge2);
 
-            // Step 3: Calculate the centroid of the face
-            Eigen::Vector3d faceCentroid = (v0 + v1 + v2) / 3.0;
-
-            // Step 4: Check the alignment of the normal with respect to the mesh centroid
-            Eigen::Vector3d directionToFace = faceCentroid - meshCentroid;
-            if (normal.dot(directionToFace) < 0) {
-                // If the normal is pointing inward, flip it by swapping vertices and inverting the normal
-                std::swap(faces(i, 1), faces(i, 2));  // Reverse winding order
-                normal = -normal;  // Flip normal direction
+            // Ensure normal points in the correct direction by comparing with reference
+            if(normal.dot(referenceNormal) < 0) {
+                std::swap(faces(i, 1), faces(i, 2));  // Correct vertex order if normal is inverted
+                normal = -normal;  // Update the normal
             }
 
-            // Store the normalized normal
-            faceNormals[i] = normal;
+            faceNormals[i] = normal.normalized();  // Normalize and store the normal
         }
     }
-
 
     // Build the edges from a given matrix of edge indices
     void buildEdges(const Eigen::MatrixXi& edges) {
