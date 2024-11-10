@@ -6,9 +6,12 @@ Maybe we should change the function names since they're currently the same as th
 #include "DiscreteShell.h"
 #include <iostream>
 #include <igl/readOBJ.h>
+#include <igl/edges.h>
+#include "Mesh.h"
 
-Mesh undeformedMesh;
-Mesh deformedMesh;
+
+Mesh undeformedMesh(Eigen::MatrixXd::Zero(0, 3), Eigen::MatrixXd::Zero(0, 3), Eigen::MatrixXd::Zero(0, 2));
+Mesh deformedMesh(Eigen::MatrixXd::Zero(0, 3), Eigen::MatrixXd::Zero(0, 3), Eigen::MatrixXd::Zero(0, 2));
 
 // Constructor
 DiscreteShell::DiscreteShell()
