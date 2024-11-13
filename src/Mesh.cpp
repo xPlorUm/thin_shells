@@ -4,6 +4,11 @@
 Edge::Edge(int vertex1, int vertex2, double stiff, double angle)
     : v1(vertex1), v2(vertex2), stiffness(stiff), dihedralAngle(angle) {}
 
+// Default Constructor
+Mesh::Mesh() : vertices(Eigen::MatrixXd()), faces(Eigen::MatrixXi()) {
+    // Optional: initialize other components here if needed
+}
+
 // Constructor for Mesh class
 Mesh::Mesh(const Eigen::MatrixXd& v, const Eigen::MatrixXi& f, const Eigen::MatrixXi& e)
     : vertices(v), faces(f) {
@@ -40,26 +45,29 @@ void Mesh::computeFaceNormals() {
 
 // Build the edges from a given matrix of edge indices
 void Mesh::buildEdges(const Eigen::MatrixXi& edges) {
+
+    Eigen::SparseMatrix<int> edgeMap(vertices.rows(), vertices.rows());
     edgeList.reserve(edges.rows());  // Pre-allocate memory for efficiency
     for (int i = 0; i < edges.rows(); ++i) {
         int v1 = edges(i, 0);
         int v2 = edges(i, 1);
         edgeList.emplace_back(v1, v2);
+
+
+
+        // Populate adjacentFaces for each edge by mapping edges to their indices
+        edgeMap.coeffRef(v1, v2) = i;
+        edgeMap.coeffRef(v2, v1) = i;
     }
 
-    // Populate adjacentFaces for each edge by mapping edges to their indices
-    std::unordered_map<std::pair<int, int>, int> edgeMap;
-    for (int i = 0; i < edgeList.size(); ++i) {
-        edgeMap[{edgeList[i].v1, edgeList[i].v2}] = i;
-        edgeMap[{edgeList[i].v2, edgeList[i].v1}] = i;
-    }
 
     // Assign adjacent faces to each edge
     for (int i = 0; i < faces.rows(); ++i) {
         for (int j = 0; j < 3; ++j) {
             int v1 = faces(i, j);
             int v2 = faces(i, (j + 1) % 3);
-            int edgeIndex = edgeMap[{v1, v2}];
+            int edgeIndex = edgeMap.coeff(v1, v2);
+
             edgeList[edgeIndex].adjacentFaces.push_back(i);
         }
     }
@@ -86,5 +94,6 @@ double Mesh::calculateDihedralAngle(Edge& edge, const std::vector<Eigen::Vector3
 
 // Builds a sparse matrix representing face adjacency
 void Mesh::buildAdjacencyMatrix() {
-    igl::facet_adjacency_matrix(faces, adjacencyMatrix);
+    if(faces.rows() != 0)
+        igl::facet_adjacency_matrix(faces, adjacencyMatrix);
 }

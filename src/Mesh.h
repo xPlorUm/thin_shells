@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <igl/facet_adjacency_matrix.h>
 #include <cmath>
+#include <utility>
 
 // Define a structure for an edge in the mesh
 struct Edge {
@@ -16,7 +17,10 @@ struct Edge {
 
     // Constructor for initializing an edge with default or specified values
     Edge(int vertex1, int vertex2, double stiff = 1.0, double angle = 0.0);
+
 };
+
+
 
 // Mesh class representing a 3D mesh structure
 class Mesh {
@@ -26,6 +30,8 @@ public:
     std::vector<Edge> edgeList;  // List of edges in the mesh
     Eigen::SparseMatrix<int> adjacencyMatrix;  // Adjacency matrix of faces
     std::vector<Eigen::Vector3d> faceNormals;  // Normals of each face
+
+    Mesh();
 
     // Constructor to initialize the mesh with vertices, faces, and edges
     Mesh(const Eigen::MatrixXd& v, const Eigen::MatrixXi& f, const Eigen::MatrixXi& e);

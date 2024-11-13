@@ -29,11 +29,14 @@ private:
     Eigen::VectorXd vn; // Velocity vector
     Eigen::VectorXd xn; // Previous position vector (Newmark integration)
 
+
     // Energy and force computation
     double computeTotalEnergy();
-    void addShellBendingEnergy(double& energy);
     void addShellBendingForce(Eigen::VectorXd& residual);
     void addShellBendingHessian(Eigen::SparseMatrix<double>& K);
+
+    double totalBendingEnergy();
+    double edgeBendingEnergy(int edgeIndex);
 
     // Time integration (Newmark scheme)
     void updateDynamicStates();

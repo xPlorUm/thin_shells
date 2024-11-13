@@ -7,93 +7,23 @@ Maybe we should change the function names since they're currently the same as th
 #include <iostream>
 #include <igl/readOBJ.h>
 #include <igl/edges.h>
+
 #include "Mesh.h"
 
 
-Mesh undeformedMesh(Eigen::MatrixXd::Zero(0, 3), Eigen::MatrixXd::Zero(0, 3), Eigen::MatrixXd::Zero(0, 2));
-Mesh deformedMesh(Eigen::MatrixXd::Zero(0, 3), Eigen::MatrixXd::Zero(0, 3), Eigen::MatrixXd::Zero(0, 2));
+
+Mesh undeformedMesh = Mesh(Eigen::MatrixXd::Zero(0, 3), Eigen::MatrixXi::Zero(0, 3), Eigen::MatrixXi::Zero(0, 2));
+Mesh deformedMesh = Mesh(Eigen::MatrixXd::Zero(0, 3), Eigen::MatrixXi::Zero(0, 3), Eigen::MatrixXi::Zero(0, 2));
 
 // Constructor
 DiscreteShell::DiscreteShell()
     : dt(0.01), simulation_duration(10.0), bending_stiffness(1.0),
       beta(0.25), gamma(0.5)
 {
-    // ChatGPT gave me these values idk
-}
-
-// Initialize from an OBJ file
-// Might do away with this and just pass in the mesh from main
-void initializeFromFile(const std::string& filename) {
-    Eigen::MatrixXd V;
-    Eigen::MatrixXi F;
-    Eigen::MatrixXi E;
-    if (!igl::readOBJ(filename, V, F)) {
-        std::cerr << "Failed to read OBJ file." << std::endl;
-        return;
-    }
-
-    igl::edges(F, E);
-
-    // Initialize the undeformed mesh
-    undeformedMesh = Mesh(V, F, E);
-    deformedMesh = Mesh(V, F, E);
-
-    vn = Eigen::MatrixXd::Zero(V.rows(), 3); // Initialize velocity
-    u = Eigen::MatrixXd::Zero(V.rows(), 3); // Initialize displacement
-    external_force = Eigen::MatrixXd::Zero(V.rows(), 3); // No external force initially
 }
 
 
-// Advance one time step
-bool DiscreteShell::advanceOneStep(int step) {
-    std::cout << "Time step: " << step * dt << "s" << std::endl;
-
-    Eigen::VectorXd residual = external_force;
-    Eigen::SparseMatrix<double> K; // Stiffness matrix
-
-    // Compute bending energy and forces
-    double energy = 0.0;
-    addShellBendingEnergy(energy);
-    addShellBendingForce(residual);
-    addShellBendingHessian(K);
-
-    // Solve for displacement increment du
-    Eigen::VectorXd du;
-    bool success = linearSolve(K, residual, du);
-    if (!success) {
-        std::cout << "Linear solve failed." << std::endl;
-        return false;
-    }
-
-    // Newmark Integration
-    deformed = xn + dt * vn + beta * dt * dt * du; // Position update
-    vn = vn + gamma * dt * du; // Velocity update
-
-    updateDynamicStates();
-    return (step * dt > simulation_duration); // End simulation after duration
-}
-
-// Compute total energy (only bending energy in this case)
-double DiscreteShell::computeTotalEnergy() {
-    double energy = 0.0;
-    totalBendingEnergy();
-    return energy;
-}
-
-
-
-// TODO Add bending energy
-void DiscreteShell::totalBendingEnergy() {
-    // Calculate bending energy based on deformed configuration
-    double energy = 0.0;
-
-    // Loop over every edge
-    for (int i = 0; i < undeformedMesh.edgeList.size(); ++i) {
-        // Calculate bending energy for each edge
-        energy += edgeBendingEnergy(i);
-    }
-}
-
+// Helper Methods
 int findOppositeVertex(const Eigen::MatrixXi& triangle, int v1, int v2) {
     for (int i = 0; i < 3; ++i) {
         int vertex = triangle(0, i);
@@ -117,6 +47,85 @@ double computeHeight(const Eigen::Vector3d& v0, const Eigen::Vector3d& v1, const
     // Height is the norm of the perpendicular component
     return perp.norm();
 }
+
+
+
+
+
+
+// Initialize from an OBJ file
+// Might do away with this and just pass in the mesh from main
+void DiscreteShell::initializeFromFile(const std::string& filename) {
+    Eigen::MatrixXd V;
+    Eigen::MatrixXi F;
+    Eigen::MatrixXi E;
+    if (!igl::readOBJ(filename, V, F)) {
+        std::cerr << "Failed to read OBJ file." << std::endl;
+        return;
+    }
+
+    igl::edges(F, E);
+
+    // Initialize the undeformed mesh
+    //undeformedMesh = Mesh(V, F, E);
+    //deformedMesh = Mesh(V, F, E);
+
+    vn = Eigen::MatrixXd::Zero(V.rows(), 3); // Initialize velocity
+    u = Eigen::MatrixXd::Zero(V.rows(), 3); // Initialize displacement
+    external_force = Eigen::MatrixXd::Zero(V.rows(), 3); // No external force initially
+}
+
+
+// Advance one time step
+bool DiscreteShell::advanceOneStep(int step) {
+    std::cout << "Time step: " << step * dt << "s" << std::endl;
+
+    Eigen::VectorXd residual = external_force;
+    Eigen::SparseMatrix<double> K; // Stiffness matrix
+
+    // Compute bending energy and forces
+    double energy = 0.0;
+    energy = computeTotalEnergy();
+    addShellBendingForce(residual);
+    addShellBendingHessian(K);
+
+    // Solve for displacement increment du
+    Eigen::VectorXd du;
+    bool success = linearSolve(K, residual, du);
+    if (!success) {
+        std::cout << "Linear solve failed." << std::endl;
+        return false;
+    }
+
+    // Newmark Integration
+    deformed = xn + dt * vn + beta * dt * dt * du; // Position update
+    vn = vn + gamma * dt * du; // Velocity update
+
+    updateDynamicStates();
+    return (step * dt > simulation_duration); // End simulation after duration
+}
+
+// Compute total energy (only bending energy in this case)
+double DiscreteShell::computeTotalEnergy() {
+    double energy = 0.0f;
+    energy += totalBendingEnergy();
+    return energy;
+}
+
+
+
+double DiscreteShell::totalBendingEnergy() {
+    // Calculate bending energy based on deformed configuration
+    double energy = 0.0;
+
+    // Loop over every edge
+    for (int i = 0; i < undeformedMesh.edgeList.size(); ++i) {
+        // Calculate bending energy for each edge
+        energy += edgeBendingEnergy(i);
+    }
+    return energy;
+}
+
 
 
 double DiscreteShell::edgeBendingEnergy(int edgeIndex) {
@@ -151,6 +160,7 @@ double DiscreteShell::edgeBendingEnergy(int edgeIndex) {
 void DiscreteShell::addShellBendingForce(Eigen::VectorXd& residual) {
     // Add bending forces to the residual vector
 }
+
 
 // TODO Add bending Hessian (stiffness matrix entries)
 void DiscreteShell::addShellBendingHessian(Eigen::SparseMatrix<double>& K) {
