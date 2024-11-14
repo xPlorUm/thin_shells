@@ -67,8 +67,8 @@ void DiscreteShell::initializeFromFile(const std::string& filename) {
     igl::edges(F, E);
 
     // Initialize the undeformed mesh
-    //undeformedMesh = Mesh(V, F, E);
-    //deformedMesh = Mesh(V, F, E);
+    undeformedMesh = Mesh(V, F, E);
+    deformedMesh = Mesh(V, F, E);
 
     vn = Eigen::MatrixXd::Zero(V.rows(), 3); // Initialize velocity
     u = Eigen::MatrixXd::Zero(V.rows(), 3); // Initialize displacement
@@ -117,7 +117,6 @@ double DiscreteShell::computeTotalEnergy() {
 double DiscreteShell::totalBendingEnergy() {
     // Calculate bending energy based on deformed configuration
     double energy = 0.0;
-
     // Loop over every edge
     for (int i = 0; i < undeformedMesh.edgeList.size(); ++i) {
         // Calculate bending energy for each edge
