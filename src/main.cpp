@@ -59,7 +59,7 @@ bool animation = true;
 
 
 // Discrete Shell
-DiscreteShell ds;
+//DiscreteShell ds;
 
 // functions for libigl
 bool callback_pre_draw(Viewer& viewer);
@@ -101,7 +101,7 @@ int main(int argc, char* argv[]) {
 
 
     //initialize discrete shell
-    ds = DiscreteShell();
+    //ds = DiscreteShell::DiscreteShell();
     //TODO initialize handle array
 
     //TODO initialize DiscreteShell with existing mesh
@@ -142,5 +142,6 @@ bool callback_pre_draw(Viewer& viewer) {
     // set value of Mesh to V
     viewer.data().clear();
     viewer.data().set_mesh(V, F);
-    viewer.core().align_camera_center(V); // TODO delete for gravity
+    viewer.core().align_camera_center(V);
+    return false;
 }
