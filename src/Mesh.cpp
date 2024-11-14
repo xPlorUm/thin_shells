@@ -1,99 +1,61 @@
 #include "Mesh.h"
 
-// Constructor for Edge structure
-Edge::Edge(int vertex1, int vertex2, double stiff, double angle)
-    : v1(vertex1), v2(vertex2), stiffness(stiff), dihedralAngle(angle) {}
+#include <igl/massmatrix.h>
+#include <igl/facet_adjacency_matrix.h>
+#include <igl/per_face_normals.h>
+#include <igl/edge_flaps.h>
+#include <igl/adjacency_matrix.h>
 
-// Default Constructor
-Mesh::Mesh() : vertices(Eigen::MatrixXd()), faces(Eigen::MatrixXi()) {
-    // Optional: initialize other components here if needed
-}
+
 
 // Constructor for Mesh class
-Mesh::Mesh(const Eigen::MatrixXd& v, const Eigen::MatrixXi& f, const Eigen::MatrixXi& e)
-    : vertices(v), faces(f) {
-    computeFaceNormals();  // Compute the normals for each face
-    buildEdges(e);         // Build edge data structures
-    buildAdjacencyMatrix(); // Build adjacency matrix for face connectivity
+Mesh::Mesh(const Eigen::MatrixXd& V_, const Eigen::MatrixXi& F_)
+    : V(V_), F(F_) {
+
+    Eigen::MatrixXi EI; Eigen::VectorXd EMAP;
+    igl::edge_flaps(F_, E, EMAP, EF, EI); // Compute the edges and the edge-face incidence
+    igl::massmatrix(vertices, faces, igl::MASSMATRIX_TYPE_DEFAULT, M); // Compute the mass matrix
+    incidenceMatrix(F, E, IN);
+    
 }
 
-// Computes the normals for each face in the mesh
-void Mesh::computeFaceNormals() {
-    faceNormals.resize(faces.rows());
-    Eigen::Vector3d referenceNormal(0, 0, 1);  // Use the global up direction as reference
 
-    for (int i = 0; i < faces.rows(); ++i) {
-        Eigen::Vector3d v0 = vertices.row(faces(i, 0));
-        Eigen::Vector3d v1 = vertices.row(faces(i, 1));
-        Eigen::Vector3d v2 = vertices.row(faces(i, 2));
+void Mesh::calculateDihedralAngle(Eigen::MatrixXd& K, Eigen::VectorXd& angles) {
+    igl::per_face_normals(V, F, FN); // Compute per face normals
+    for (int i = 0; i < EF.rows(); i++) {
+        if (EF(i, 1) == -1) //boundary edge
+            angles(i) = 0.0f;
+        Eigen::Vector3d v0 = FN.row(EF(i, 0));
+        Eigen::Vector3d v1 = FN.row(EF(i, 1));
+        angle = acos(v0.dot(v1));
+        angles(i) = angle;
 
-        // Calculate two edges of the face
-        Eigen::Vector3d edge1 = v1 - v0;
-        Eigen::Vector3d edge2 = v2 - v0;
-        // Cross product of edges gives the normal
-        Eigen::Vector3d normal = edge1.cross(edge2);
-
-        // Ensure normal points in the correct direction by comparing with reference
-        if (normal.dot(referenceNormal) < 0) {
-            std::swap(faces(i, 1), faces(i, 2));  // Correct vertex order if normal is inverted
-            normal = -normal;  // Update the normal
-        }
-
-        faceNormals[i] = normal.normalized();  // Normalize and store the normal
-    }
-}
-
-// Build the edges from a given matrix of edge indices
-void Mesh::buildEdges(const Eigen::MatrixXi& edges) {
-
-    Eigen::SparseMatrix<int> edgeMap(vertices.rows(), vertices.rows());
-    edgeList.reserve(edges.rows());  // Pre-allocate memory for efficiency
-    for (int i = 0; i < edges.rows(); ++i) {
-        int v1 = edges(i, 0);
-        int v2 = edges(i, 1);
-        edgeList.emplace_back(v1, v2);
-
-
-
-        // Populate adjacentFaces for each edge by mapping edges to their indices
-        edgeMap.coeffRef(v1, v2) = i;
-        edgeMap.coeffRef(v2, v1) = i;
-    }
-
-
-    // Assign adjacent faces to each edge
-    for (int i = 0; i < faces.rows(); ++i) {
-        for (int j = 0; j < 3; ++j) {
-            int v1 = faces(i, j);
-            int v2 = faces(i, (j + 1) % 3);
-            int edgeIndex = edgeMap.coeff(v1, v2);
-
-            edgeList[edgeIndex].adjacentFaces.push_back(i);
-        }
-    }
-
-    // Calculate the dihedral angles for each edge using the populated adjacent faces
-    for (Edge& edge : edgeList) {
-        edge.dihedralAngle = calculateDihedralAngle(edge, faceNormals);
+        //also determine stiffness
         if (fabs(edge.dihedralAngle) > 0.0) { // Apply a threshold to determine if the edge is a crease
-            edge.stiffness = 0.5;
+            K(i, i) = 0.5;
         }
+    }
+
+}
+
+
+void incidenceMatrix(const Eigen::MatrixXi& F, const Eigen::MatrixXi& E, Eigen::SparseMatrix<int>& IN) {
+    int nV = F.maxCoeff() + 1;
+    int nE = E.rows();     
+
+    IN.resize(nV, nE);
+    IN.setZero();
+
+    for (int i = 0; i < nE; ++i) {
+        int v1 = E(i, 0);
+        int v2 = E(i, 1);
+
+        IN.insert(v1, i) = 1;
+        IN.insert(v2, i) = 1;
     }
 }
 
-// Calculates the dihedral angle between the two faces adjacent to an edge
-double Mesh::calculateDihedralAngle(Edge& edge, const std::vector<Eigen::Vector3d>& faceNormals) {
-    if (edge.adjacentFaces.size() < 2) return 0.0;  // Return 0 for boundary edges
 
-    const Eigen::Vector3d& n1 = faceNormals[edge.adjacentFaces[0]];
-    const Eigen::Vector3d& n2 = faceNormals[edge.adjacentFaces[1]];
 
-    double cosAngle = n1.dot(n2);
-    return acos(std::clamp(cosAngle, -1.0, 1.0));  // Return the angle in radians
-}
 
-// Builds a sparse matrix representing face adjacency
-void Mesh::buildAdjacencyMatrix() {
-    if(faces.rows() != 0)
-        igl::facet_adjacency_matrix(faces, adjacencyMatrix);
-}
+

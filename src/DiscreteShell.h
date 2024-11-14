@@ -8,7 +8,8 @@ class DiscreteShell {
 public:
     // Constructor
     DiscreteShell::DiscreteShell();
-    void initializeMesh(const Eigen::MatrixXd& V, const Eigen::MatrixXd& F);
+    void initializeMesh(const Eigen::MatrixXd& V, const Eigen::MatrixXd& F); 
+    void initializeFromFile(const std::string& filename)
 
     // Advance one time step
     bool advanceOneStep(int step);
@@ -35,9 +36,9 @@ private:
     double computeTotalEnergy();
     void addShellBendingForce(Eigen::VectorXd& residual);
     void addShellBendingHessian(Eigen::SparseMatrix<double>& K);
-
     double totalBendingEnergy();
     double edgeBendingEnergy(int edgeIndex);
+
 
     // Time integration (Newmark scheme)
     void updateDynamicStates();

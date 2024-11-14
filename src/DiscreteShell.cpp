@@ -8,13 +8,11 @@ Maybe we should change the function names since they're currently the same as th
 #include <igl/readOBJ.h>
 #include <igl/edges.h>
 #include <autodiff/forward/dual/dual.hpp>
+#include <autodiff/forward/dual/eigen.hpp>
 
 #include "Mesh.h"
 
 
-
-Mesh undeformedMesh = Mesh(Eigen::MatrixXd::Zero(0, 3), Eigen::MatrixXi::Zero(0, 3), Eigen::MatrixXi::Zero(0, 2));
-Mesh deformedMesh = Mesh(Eigen::MatrixXd::Zero(0, 3), Eigen::MatrixXi::Zero(0, 3), Eigen::MatrixXi::Zero(0, 2));
 
 // Constructor
 DiscreteShell::DiscreteShell()
@@ -22,35 +20,6 @@ DiscreteShell::DiscreteShell()
       beta(0.25), gamma(0.5)
 {
 }
-
-
-// Helper Methods
-int findOppositeVertex(const Eigen::MatrixXi& triangle, int v1, int v2) {
-    for (int i = 0; i < 3; ++i) {
-        int vertex = triangle(0, i);
-        if (vertex != v1 && vertex != v2) {
-            return vertex;
-        }
-    }
-    return -1; // Should never happen if the mesh is correctly formed
-}
-
-double computeHeight(const Eigen::Vector3d& v0, const Eigen::Vector3d& v1, const Eigen::Vector3d& v2) {
-    Eigen::Vector3d edge = v1 - v0;  // Edge vector
-    Eigen::Vector3d vertex = v2 - v0;  // Vertex vector
-
-    // Projection of vertex onto edge
-    Eigen::Vector3d proj = (vertex.dot(edge) / edge.squaredNorm()) * edge;
-
-    // Perpendicular component from edge to vertex
-    Eigen::Vector3d perp = vertex - proj;
-
-    // Height is the norm of the perpendicular component
-    return perp.norm();
-}
-
-
-
 
 
 
@@ -65,25 +34,26 @@ void DiscreteShell::initializeFromFile(const std::string& filename) {
         return;
     }
 
-    igl::edges(F, E);
 
     // Initialize the undeformed mesh
-    undeformedMesh = Mesh(V, F, E);
-    deformedMesh = Mesh(V, F, E);
+    undeformedMesh = Mesh(V, F);
+    deformedMesh = Mesh(V, F);
 
     vn = Eigen::MatrixXd::Zero(V.rows(), 3); // Initialize velocity
+    xn = V;
     u = Eigen::MatrixXd::Zero(V.rows(), 3); // Initialize displacement
     external_force = Eigen::MatrixXd::Zero(V.rows(), 3); // No external force initially
-// Initialize from given Vertex
-void DiscreteShell::initializeMesh(const Eigen::MatrixXd &V, const Eigen::MatrixXd &F) {
-    // Load mesh (vertices and faces)
-    V_deformed = V;
-    V_undeformed = V;
+}
 
-    vn = Eigen::VectorXd::Zero(V_deformed.size()); //initialize velocity vector
-    xn = V_undeformed; // Initial previous position
-    u = Eigen::VectorXd::Zero(V_deformed.size()); // Initial displacement
-    external_force = Eigen::VectorXd::Zero(V_deformed.size()); // No external force initially
+// Initialize from given Vertex
+void DiscreteShell::initializeMesh(const Eigen::MatrixXd &V, const Eigen::MatrixXi &F) {
+    undeformedMesh = Mesh(V, F);
+    deformedMesh = Mesh(V, F);
+
+    vn = Eigen::MatrixXd::Zero(V.rows(), 3); // Initialize velocity
+    xn = V;
+    u = Eigen::MatrixXd::Zero(V.rows(), 3); // Initialize displacement
+    external_force = Eigen::MatrixXd::Zero(V.rows(), 3); // No external force initially
 }
 
 
@@ -107,6 +77,12 @@ bool DiscreteShell::advanceOneStep(int step) {
         std::cout << "Linear solve failed." << std::endl;
         return false;
     }
+
+    //solve ODE of motion
+
+    Eigen::Matrix<dual, Eigen::Dynamic, Eigen::Dynamic> x_matrix(n, 3);
+
+
 
     // given displacement increment du, dt, V_undeformed=xn
     // calculate acceleration
@@ -133,8 +109,6 @@ double DiscreteShell::computeTotalEnergy() {
     return energy;
 }
 
-
-
 double DiscreteShell::totalBendingEnergy() {
     // Calculate bending energy based on deformed configuration
     double energy = 0.0;
@@ -147,33 +121,62 @@ double DiscreteShell::totalBendingEnergy() {
 }
 
 
+// Calculate Flexural Energy
+//for AD
+int findOppositeVertex(const Eigen::MatrixXi& triangle, int v1, int v2) {
+    for (int i = 0; i < 3; ++i) {
+        int vertex = triangle(0, i);
+        if (vertex != v1 && vertex != v2) {
+            return vertex;
+        }
+    }
+    return -1; // Should never happen if the mesh is correctly formed
+}
 
-double DiscreteShell::edgeBendingEnergy(int edgeIndex) {
+double computeHeight(const Eigen::Matrix<dual, 3, 1>& v0, const Eigen::Matrix<dual, 3, 1>& v1, const Eigen::Matrix<dual, 3, 1>& v2) {
+    Eigen::Matrix<dual, 3, 1> edge = v1 - v0;  // Edge vector
+    Eigen::Matrix<dual, 3, 1> vertex = v2 - v0;  // Vertex vector
+
+    // Projection of vertex onto edge
+    Eigen::Matrix<dual, 3, 1> proj = (vertex.dot(edge) / edge.squaredNorm()) * edge;
+
+    // Perpendicular component from edge to vertex
+    Eigen::Matrix<dual, 3, 1> perp = vertex - proj;
+
+    // Height is the norm of the perpendicular component
+    return perp.norm();
+}
+
+dual DiscreteShell::edgeBendingEnergy(int edgeIndex) {
     // Retrieve the edge from both undeformed and deformed mesh configurations
     Edge& edge_undeformed = undeformedMesh.edgeList[edgeIndex];
     Edge& edge_deformed = deformedMesh.edgeList[edgeIndex];
 
     // Calculate the length of the edge in the undeformed configuration
-    Eigen::Vector3d v1 = undeformedMesh.vertices.row(edge_undeformed.v1);
-    Eigen::Vector3d v2 = undeformedMesh.vertices.row(edge_undeformed.v2);
-    double edgeLength = (v2 - v1).norm();
+    Eigen::Matrix<dual, 3, 1> v1 = undeformedMesh.vertices.row(edge_undeformed.v1).cast<dual>();
+    Eigen::Matrix<dual, 3, 1> v2 = undeformedMesh.vertices.row(edge_undeformed.v2).cast<dual>();
+    dual edgeLength = (v2 - v1).norm();
 
-    // Assuming both triangles are available and correctly referenced
+    // Retrieve opposite vertices in undeformed and deformed configurations
     int oppositeVertex1 = findOppositeVertex(undeformedMesh.faces, edge_undeformed.v1, edge_undeformed.v2);
     int oppositeVertex2 = findOppositeVertex(deformedMesh.faces, edge_deformed.v1, edge_deformed.v2);
 
-    double h1 = computeHeight(v1, v2, undeformedMesh.vertices.row(oppositeVertex1));
-    double h2 = computeHeight(v1, v2, deformedMesh.vertices.row(oppositeVertex2));
-    double he = (h1 + h2) / 6.0;
+    // Calculate heights in undeformed and deformed configurations
+    dual h1 = computeHeight(v1, v2, undeformedMesh.vertices.row(oppositeVertex1).cast<dual>());
+    dual h2 = computeHeight(v1, v2, deformedMesh.vertices.row(oppositeVertex2).cast<dual>());
+    dual he = (h1 + h2) / 6.0;
 
     // Calculate the difference in dihedral angles between deformed and undeformed configurations
-    double angleDifference = edge_deformed.dihedralAngle - edge_undeformed.dihedralAngle;
+    dual angleDifference = edge_deformed.dihedralAngle - edge_undeformed.dihedralAngle.cast<dual>();
 
     // Compute the bending energy contribution of this edge
-    double bendingEnergy = pow(angleDifference, 2) * (edgeLength / he);
+    dual bendingEnergy = pow(angleDifference, 2) * (edgeLength / he);
 
     return bendingEnergy;
 }
+
+
+//TODO determine Bending Energy 
 
 
 // TODO Add bending force to residual
@@ -219,4 +222,5 @@ void DiscreteShell::updateDynamicStates() {
     vn = (V_deformed - xn) / dt; // Update velocity
     xn = V_deformed; // Update previous position for the next time step
 }
+
 

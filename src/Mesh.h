@@ -3,50 +3,30 @@
 
 #include <Eigen/Dense>
 #include <vector>
-#include <unordered_map>
-#include <igl/facet_adjacency_matrix.h>
 #include <cmath>
 #include <utility>
-
-// Define a structure for an edge in the mesh
-struct Edge {
-    int v1, v2;  // Vertex indices of the edge's endpoints
-    double stiffness;  // Stiffness coefficient used for simulations or rendering effects
-    double dihedralAngle;  // Dihedral angle between the faces adjacent to the edge
-    std::vector<int> adjacentFaces;  // Indices of faces adjacent to this edge
-
-    // Constructor for initializing an edge with default or specified values
-    Edge(int vertex1, int vertex2, double stiff = 1.0, double angle = 0.0);
-
-};
-
+#include <autodiff/forward/dual.hpp>
 
 
 // Mesh class representing a 3D mesh structure
 class Mesh {
 public:
-    Eigen::MatrixXd vertices;  // Matrix storing vertex positions
-    Eigen::MatrixXi faces;     // Matrix storing indices of vertices forming each face
-    std::vector<Edge> edgeList;  // List of edges in the mesh
-    Eigen::SparseMatrix<int> adjacencyMatrix;  // Adjacency matrix of faces
-    std::vector<Eigen::Vector3d> faceNormals;  // Normals of each face
+    //dynamic
+    Eigen::MatrixXd V;  // Matrix storing vertex positions (#V, 3)
+    Eigen::MatrixXd FN; // Normals of each face (#F, 3)
 
-    Mesh();
+    // Constructor to initialize the mesh with vertices, faces
+    Mesh(const Eigen::MatrixXd& V_, const Eigen::MatrixXi& F_);
 
-    // Constructor to initialize the mesh with vertices, faces, and edges
-    Mesh(const Eigen::MatrixXd& v, const Eigen::MatrixXi& f, const Eigen::MatrixXi& e);
+    // Returns the dihedral angles of the current mesh (#E, 1) and also the Stiffness Matrix (#E, #E)
+    void calculateDihedralAngle(Eigen::VectorXd& angles, Eigen::MatrixXd& K)
 
-    // Computes the normals for each face in the mesh
-    void computeFaceNormals();
-
-    // Build the edges from a given matrix of edge indices
-    void buildEdges(const Eigen::MatrixXi& edges);
-
-    // Calculates the dihedral angle between the two faces adjacent to an edge
-    double calculateDihedralAngle(Edge& edge, const std::vector<Eigen::Vector3d>& faceNormals);
-
-    // Builds a sparse matrix representing face adjacency
-    void buildAdjacencyMatrix();
+private:
+    //static
+    Eigen::MatrixXi F;  // Matrix storing indices of vertices forming each face (#F, 3)
+    Eigen::MatrixXi E;  // Edges (#E, 2)
+    Eigen::MatrixXi EF; // Face-to-edge incidence matrix (#E, 2)
+    Eigen::SparseMatrix<int> IN; // Incidence matrix (#V, #E)
 };
 
 #endif // MESH_H
