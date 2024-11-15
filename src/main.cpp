@@ -141,4 +141,5 @@ bool callback_pre_draw(Viewer& viewer) {
     viewer.data().clear();
     viewer.data().set_mesh(V, F);
     viewer.core().align_camera_center(V);
+    return false;
 }
