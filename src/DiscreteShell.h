@@ -15,6 +15,11 @@ public:
     // Advance one time step
     bool advanceOneStep(int step);
 
+// Returns the positions to get drawn
+// TODO : this should be a pointer
+const Eigen::MatrixXd* getPositions();
+const Eigen::MatrixXi* getFaces();
+
 private:
     // Physical properties
     double dt; // Time step
@@ -28,6 +33,9 @@ private:
     Eigen::VectorXd u; // Displacement vector
     Eigen::VectorXd vn; // Velocity vector
     Eigen::VectorXd xn; // Previous position vector (Newmark integration)
+
+    Eigen::MatrixXi *F; // Faces of the shell
+    Eigen::MatrixXd *V;
 
     // Energy and force computation
     double computeTotalEnergy();
@@ -45,6 +53,7 @@ private:
 
     // Helper function to build system matrix
     void buildSystemMatrix(Eigen::SparseMatrix<double>& K);
+
 };
 
 #endif // DISCRETE_SHELL_H

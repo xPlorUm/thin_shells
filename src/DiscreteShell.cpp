@@ -4,57 +4,47 @@ Maybe we should change the function names since they're currently the same as th
 */
 
 #include "DiscreteShell.h"
+#include "igl/read_triangle_mesh.h"
 #include <iostream>
 #include <igl/readOBJ.h>
+#include <filesystem>
 
 // Constructor
 DiscreteShell::DiscreteShell()
     : dt(0.01), simulation_duration(10.0), bending_stiffness(1.0),
       beta(0.25), gamma(0.5)
 {
-    // ChatGPT gave me these values idk
+    F = new Eigen::MatrixXi(0, 3);
+    V = new Eigen::MatrixXd(0, 3);
 }
 
 // Initialize from an OBJ file
 // Might do away with this and just pass in the mesh from main
 void DiscreteShell::initializeFromFile(const std::string& filename) {
+    if (filename.empty()) {
+        std::cerr << "Error: No file provided" << std::endl;
+        return;
+    }
+    if (!std::filesystem::exists(filename)) {
+        std::cerr << "Error: File does not exist" << std::endl;
+        std::cerr << "You should provide a valid file as first argument !" << std::endl;
+        return;
+    }
+    // check if filename is a real file
+    // if not, return
     // Load mesh (vertices and faces)
-    Eigen::MatrixXd F;
-    igl::readOBJ(filename, undeformed, F);
-    deformed = undeformed;
-    vn = Eigen::VectorXd::Zero(deformed.size()); // Initial velocity
-    xn = undeformed; // Initial previous position
-    u = Eigen::VectorXd::Zero(deformed.size()); // Initial displacement
-    external_force = Eigen::VectorXd::Zero(deformed.size()); // No external force initially
+    igl::read_triangle_mesh(filename, *V, *F);
+    std::cout << "Loaded mesh " << filename << std::endl;
+    std::cout << "V : (" << V->rows() << ", " << V->cols() << ")" << std::endl;
+    std::cout << "F : (" << F->rows() << ", " << F->cols() << ")" << std::endl;
 }
 
 // Advance one time step
 bool DiscreteShell::advanceOneStep(int step) {
-    std::cout << "Time step: " << step * dt << "s" << std::endl;
-
-    Eigen::VectorXd residual = external_force;
-    Eigen::SparseMatrix<double> K; // Stiffness matrix
-
-    // Compute bending energy and forces
-    double energy = 0.0;
-    addShellBendingEnergy(energy);
-    addShellBendingForce(residual);
-    addShellBendingHessian(K);
-
-    // Solve for displacement increment du
-    Eigen::VectorXd du;
-    bool success = linearSolve(K, residual, du);
-    if (!success) {
-        std::cout << "Linear solve failed." << std::endl;
-        return false;
-    }
-
-    // Newmark Integration
-    deformed = xn + dt * vn + beta * dt * dt * du; // Position update
-    vn = vn + gamma * dt * du; // Velocity update
-
-    updateDynamicStates();
-    return (step * dt > simulation_duration); // End simulation after duration
+    // std::cout << "Step " << step << std::endl;
+    // Scale down V
+    *V *= 0.9;
+    return false;
 }
 
 // Compute total energy (only bending energy in this case)
@@ -112,4 +102,12 @@ void DiscreteShell::buildSystemMatrix(Eigen::SparseMatrix<double>& K) {
 void DiscreteShell::updateDynamicStates() {
     vn = (deformed - xn) / dt; // Update velocity
     xn = deformed; // Update previous position for the next time step
+}
+
+const Eigen::MatrixXd* DiscreteShell::getPositions() {
+    return V;
+}
+
+const Eigen::MatrixXi* DiscreteShell::getFaces() {
+    return F;
 }
