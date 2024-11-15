@@ -51,7 +51,8 @@ typedef Eigen::Triplet<double> T;
 double anim_t = 0; // current step of animation
 double step_size = 1; 
 int total_steps = 50; // how many steps are used for animation
-bool animation = true;
+// False by default, need to start that in the GUI
+bool animation = false;
 
 
 // Discrete Shell
@@ -79,11 +80,14 @@ int main(int argc, char* argv[]) {
         return 1;
     }
     ds.initializeFromFile(argv[1]);
+    // Initialize Viewer
     viewer.data().clear();
     auto V = ds.getPositions();
     auto F = ds.getFaces();
     viewer.data().set_mesh(*V, *F);
     viewer.core().align_camera_center(*V);
+
+    viewer.core().is_animating = true; // Enables continuous rendering
     igl::opengl::glfw::imgui::ImGuiPlugin plugin;
     viewer.plugins.push_back(&plugin);
     igl::opengl::glfw::imgui::ImGuiMenu menu;
@@ -92,10 +96,16 @@ int main(int argc, char* argv[]) {
 
     //define the User Interface
     menu.callback_draw_viewer_menu = [&]() {
-        // Draw parent menu content
+        // Draw parent menu content (optional, can be commented out)
         // menu.draw_viewer_menu();
-    };
 
+        // Add a button to start/stop the animation
+        if (ImGui::Button(animation ? "Stop Animation" : "Start Animation")) {
+            animation = !animation; // Toggle animation state
+        }
+        // Optionally, add a slider to control animation speed
+        ImGui::SliderInt("Total Steps", &total_steps, 10, 200);
+    };
     viewer.callback_pre_draw = callback_pre_draw;
     viewer.core().set_rotation_type(igl::opengl::ViewerCore::ROTATION_TYPE_TRACKBALL);
     viewer.launch();
