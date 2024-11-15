@@ -17,12 +17,6 @@ using namespace Eigen;
 using Viewer = igl::opengl::glfw::Viewer;
 
 Viewer viewer;
-
-string PATH = "/home/hugues/Desktop/ETHZ/MA3/PBS/thin_shells/data/";
-// string PATH = "C:\\Users\\cedri\\source\\repos\\thin_shells\\data\\";
-
-string file = "old_assignment/woody-hi.off";
-
 //vertex array, #V x3
 Eigen::MatrixXd V(0, 3), V_original(0, 3); //V: Vertices which are to be changed temporarily during animation
 //face array, #F x3
