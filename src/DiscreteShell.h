@@ -3,13 +3,14 @@
 
 #include <Eigen/Core>
 #include <Eigen/Sparse>
+#include "Mesh.h"
 
 class DiscreteShell {
 public:
     // Constructor
     DiscreteShell::DiscreteShell();
-    void initializeMesh(const Eigen::MatrixXd& V, const Eigen::MatrixXd& F); 
-    void initializeFromFile(const std::string& filename)
+    void initializeMesh(const Eigen::MatrixXd& V, const Eigen::MatrixXi& F); 
+    void initializeFromFile(const std::string& filename);
 
     // Advance one time step
     bool advanceOneStep(int step);
@@ -24,8 +25,8 @@ private:
     double bending_stiffness; // Stiffness for bending energy
 
     // State variables
-    Eigen::MatrixXd V_deformed; // Deformed configuration (vertex positions)
-    Eigen::MatrixXd V_undeformed; // Undeformed configuration (reference positions)
+    Mesh deformedMesh;
+    Mesh undeformedMesh;
     Eigen::VectorXd external_force; // External forces applied to the shell
     Eigen::VectorXd u; // Displacement vector
     Eigen::VectorXd vn; // Velocity vector
@@ -33,11 +34,9 @@ private:
 
 
     // Energy and force computation
-    double computeTotalEnergy();
     void addShellBendingForce(Eigen::VectorXd& residual);
     void addShellBendingHessian(Eigen::SparseMatrix<double>& K);
-    double totalBendingEnergy();
-    double edgeBendingEnergy(int edgeIndex);
+    void totalBendingEnergy(Eigen::VectorXd energy);
 
 
     // Time integration (Newmark scheme)
