@@ -5,17 +5,30 @@ Maybe we should change the function names since they're currently the same as th
 
 #include "DiscreteShell.h"
 #include "igl/read_triangle_mesh.h"
+#include "common.h"
 #include <iostream>
-#include <igl/readOBJ.h>
+#include <igl/edges.h> // Include this header to use igl::edges
 #include <filesystem>
+
 
 // Constructor
 DiscreteShell::DiscreteShell()
-    : dt(0.01), simulation_duration(10.0), bending_stiffness(1.0),
+    : dt(0.03), simulation_duration(10.0), bending_stiffness(1.0),
       beta(0.25), gamma(0.5)
 {
     F = new Eigen::MatrixXi(0, 3);
     V = new Eigen::MatrixXd(0, 3);
+    Velocity = new Eigen::MatrixXd(0, 3);
+    E = new Eigen::MatrixXi(0, 2);
+    forces = Eigen::MatrixX3d::Zero(V->rows(), 3);
+}
+
+// Destructor
+DiscreteShell::~DiscreteShell() {
+    delete F;
+    delete V;
+    delete Velocity;
+    delete E;
 }
 
 // Initialize from an OBJ file
@@ -34,17 +47,91 @@ void DiscreteShell::initializeFromFile(const std::string& filename) {
     // if not, return
     // Load mesh (vertices and faces)
     igl::read_triangle_mesh(filename, *V, *F);
+    // Get all edges
     std::cout << "Loaded mesh " << filename << std::endl;
     std::cout << "V : (" << V->rows() << ", " << V->cols() << ")" << std::endl;
     std::cout << "F : (" << F->rows() << ", " << F->cols() << ")" << std::endl;
+    std::cout << "Faces : " << F->rows() << std::endl;
+    // Compute the edges
+    igl::edges(*F, *E);
+    std::cout << "E : (" << E->rows() << ", " << E->cols() << ")" << std::endl;
+    // Compute the rest length of the edges
+    E_length_rest.resize(E->rows());
+    for (int i = 0; i < E->rows(); i++) {
+        // Get the indices of the two vertices of the edge
+        int v1 = (*E)(i, 0);
+        int v2 = (*E)(i, 1);
+        // Get the positions of the two vertices
+        Eigen::Vector3d p1 = V->row(v1);
+        Eigen::Vector3d p2 = V->row(v2);
+        // Compute the rest length of the edge
+        E_length_rest(i) = (p2 - p1).norm();
+    }
+
+    // Set velocity to zero evrywhere
+    Velocity->resize(V->rows(), 3);
+    Velocity->setZero();
+
+    // Sets the mass matrix :
+    // M = diag(m1, m1, m1, m2, m2, m2, ... mn, mn, mn)
+    // where mi is the mass of the vertex i
+    M_inv.resize(3 * V->rows(), 3 * V->rows());
+    M_inv.setZero();
+    for (int i = 0; i < V->rows(); i++) {
+        M_inv.block<3, 3>(3 * i, 3 * i) = Eigen::Matrix3d::Identity() * 1 ;
+    }
 }
 
 // Advance one time step
 bool DiscreteShell::advanceOneStep(int step) {
-    // std::cout << "Step " << step << std::endl;
-    // Scale down V
-    *V *= 0.9;
+    // Reset forces
+    forces = Eigen::MatrixX3d::Zero(V->rows(), 3);
+    computeStrechingForces(forces);
+    // Update positions with Newtons law
+    // Iterate over all velocities and update
+    // Set first vertice force as -inf
+    for (int i = 0; i < Velocity->rows(); i++) {
+        // Gets the force for the vertex I
+        Eigen::Vector3d force = forces.row(i);
+        // Gets the velocity for the vertex I
+        double mass_i = 1;
+        if (i == 42) {
+            mass_i = 0;
+        }
+        // Adds gravity as force
+        force += Eigen::Vector3d(0, -9.81, 0);
+        Eigen::Vector3d acceleration = mass_i * force;
+        // add gravity
+        Velocity->row(i) += dt * acceleration;
+        // Update the position
+        V->row(i) += dt * Velocity->row(i);
+    }
     return false;
+}
+
+void DiscreteShell::computeStrechingForces(Eigen::MatrixX3d &forces) {
+    // TODO : that should use baraff triangle methods.
+    // Compute stretching forces
+    // Iterate over all edges
+    // Compute the stretching force for each edge
+    // Add the stretching force to the forces vector
+    forces.setZero();
+    for (int i = 0; i < E->rows(); i++) {
+        // Get the indices of the two vertices of the edge
+        int v1 = E->operator()(i, 0);
+        int v2 = E->operator()(i, 1);
+        // Get the positions of the two vertices
+        Eigen::Vector3d p1 = V->row(v1);
+        Eigen::Vector3d p2 = V->row(v2);
+        // Compute the stretching force
+        double current_length = (p2 - p1).norm();
+        double rest_length = E_length_rest(i);
+        double force_magnitude = 0.5 * 1000 *  (current_length - rest_length);
+        auto direction = (p2 - p1).normalized();
+        Eigen::Vector3d fi = force_magnitude * direction;
+        forces.row(v1) += fi;
+        forces.row(v2) -= fi;
+    }
 }
 
 // Compute total energy (only bending energy in this case)

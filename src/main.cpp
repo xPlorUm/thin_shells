@@ -2,6 +2,7 @@
 #include <igl/opengl/glfw/Viewer.h>
 #include <igl/opengl/glfw/imgui/ImGuiMenu.h>
 #include <igl/rotate_by_quat.h>
+#include <igl/unproject_onto_mesh.h>
 #include "DiscreteShell.h"
 #include <iostream>
 
@@ -54,6 +55,8 @@ DiscreteShell ds;
 
 // functions for libigl
 bool callback_pre_draw(Viewer& viewer);
+bool callback_mouse_down(Viewer& viewer, int button, int modifier);
+bool callback_key_down(Viewer& viewer, unsigned char key, int modifiers);
 
 
 bool load_mesh(string filename) {
@@ -86,6 +89,7 @@ int main(int argc, char* argv[]) {
     viewer.plugins.push_back(&plugin);
     igl::opengl::glfw::imgui::ImGuiMenu menu;
     plugin.widgets.push_back(&menu);
+    anim_t += step_size;
 
 
     //define the User Interface
@@ -101,6 +105,9 @@ int main(int argc, char* argv[]) {
         ImGui::SliderInt("Total Steps", &total_steps, 10, 200);
     };
     viewer.callback_pre_draw = callback_pre_draw;
+    viewer.callback_mouse_down = callback_mouse_down;
+    viewer.callback_key_down = callback_key_down;
+
     viewer.core().set_rotation_type(igl::opengl::ViewerCore::ROTATION_TYPE_TRACKBALL);
     viewer.launch();
 }
@@ -118,14 +125,45 @@ bool callback_pre_draw(Viewer& viewer) {
         //TODO advance time step of discrete shell
         ds.advanceOneStep(begin_step);
         //TODO change/add function in discrete shell class which returns the resulting V:Vertices Matrix
+        anim_t += step_size;
     }
     //add time_step
-    anim_t += step_size;
     // set value of Mesh to V
     viewer.data().clear();
     // Draw the discrete shell
     auto V = ds.getPositions();
     auto F = ds.getFaces();
     viewer.data().set_mesh(*V, *F);
+    return false;
+}
+
+// Display debug information on debug
+bool callback_mouse_down(Viewer &viewer, int button, int modifier) {
+    int vi = -1;
+    int fid;
+    Eigen::Vector3f bc;
+    // Cast a ray in the view direction starting from the mouse position
+    double x = viewer.current_mouse_x;
+    double y = viewer.core().viewport(3) - viewer.current_mouse_y;
+    if (igl::unproject_onto_mesh(Eigen::Vector2f(x, y), viewer.core().view /* viewer.data().model*/,
+                                 viewer.core().proj, viewer.core().viewport, *ds.getPositions(), *ds.getFaces(), fid, bc)) {
+        // paint hit red
+        bc.maxCoeff(&vi);
+        vi = (*ds.getFaces())(fid, vi);
+        // Get the closest edge
+
+    }
+    if (vi == -1) {
+        return false;
+    }
+    ds.debug_vertex(vi);
+    return false;
+}
+
+bool callback_key_down(Viewer &viewer, unsigned char key, int modifiers) {
+    // If space, stop the animation
+    if (key == ' ') {
+        animation = !animation;
+    }
     return false;
 }

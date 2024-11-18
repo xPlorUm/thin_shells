@@ -3,17 +3,31 @@
 
 #include <Eigen/Core>
 #include <Eigen/Sparse>
+#include <iostream>
 
 class DiscreteShell {
 public:
     // Constructor
     DiscreteShell();
+    // Destructor
+    ~DiscreteShell();
 
     // Initialize from an OBJ file
     void initializeFromFile(const std::string& filename);
 
     // Advance one time step
     bool advanceOneStep(int step);
+
+    // Given an index of a vertex, print some stuff. Very much useful for debugging
+    void debug_vertex(int vertex_index) {
+        std::cout << "Vertex " << vertex_index << std::endl;
+        // Velocity
+        std::cout << "Velocity : " << Velocity->row(vertex_index) << std::endl;
+        // Position
+        std::cout << "Position : " << V->row(vertex_index) << std::endl;
+        // Forces
+        std::cout << "Forces : " << forces.row(vertex_index) << std::endl;
+    }
 
 // Returns the positions to get drawn
 // TODO : this should be a pointer
@@ -36,6 +50,13 @@ private:
 
     Eigen::MatrixXi *F; // Faces of the shell
     Eigen::MatrixXd *V;
+    Eigen::MatrixXd *Velocity; // Velocity of the shell (point-wise)
+    Eigen::MatrixXi *E; // Edges of the shell
+    Eigen::VectorXd E_length_rest ; // Rest length of edges
+    // Mass matrix.
+    Eigen::MatrixXd M_inv;
+    // Forces applied point-wise.
+    Eigen::MatrixX3d forces;
 
     // Energy and force computation
     double computeTotalEnergy();
@@ -53,6 +74,9 @@ private:
 
     // Helper function to build system matrix
     void buildSystemMatrix(Eigen::SparseMatrix<double>& K);
+
+    void computeStrechingForces(Eigen::MatrixX3d &forces); // Compute stretching forces
+
 
 };
 
