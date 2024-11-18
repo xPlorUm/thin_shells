@@ -47,10 +47,10 @@ void DiscreteShell::initializeMesh(const Eigen::MatrixXd& V, const Eigen::Matrix
     undeformedMesh = Mesh(V, F);
     deformedMesh = Mesh(V, F);
 
-    vn = Eigen::MatrixXd::Zero(V.rows(), 3); // Initialize velocity
-    xn = V;
-    u = Eigen::MatrixXd::Zero(V.rows(), 3); // Initialize displacement
-    external_force = Eigen::MatrixXd::Zero(V.rows(), 3); // No external force initially
+    //vn = Eigen::MatrixXd::Zero(V.rows(), 3); // Initialize velocity
+    //xn = V;
+    //u = Eigen::MatrixXd::Zero(V.rows(), 3); // Initialize displacement
+    //external_force = Eigen::MatrixXd::Zero(V.rows(), 3); // No external force initially
 }
 
 
@@ -60,21 +60,25 @@ bool DiscreteShell::advanceOneStep(int step) {
 
     Eigen::VectorXd residual = external_force;
 
-    int nV = deformedMesh.V.rows();
-    // Compute bending energy and forces
-    //dual energy = totalBendingEnergy();
 
-    //TODO Compute derivative of energy
-    auto energy_func = [this]() {
+    auto energy_f = [this]() -> var {
         return totalBendingEnergy();
         };
-    DualVector gx = gradient(energy_func, wrt(deformedMesh.V), at(deformedMesh.V));
+
+    // Derivative and forward pass of Bending energy function
+    // Shape of derivative is (#V, 3)
+    var energy = energy_f(); // forward
+    DualVector x = Eigen::Map<DualVector>(deformedMesh.V.data(), deformedMesh.V.size(), 1);
+    Eigen::MatrixXd W_d = Eigen::Map<Eigen::MatrixXd>(gradient(energy, x).data(), deformedMesh.V.rows(), deformedMesh.V.cols()); // backward wrt m1.x
+
+    std::cout << x << std::endl;
+    std::cout << "x = " << x << std::endl;
+    std::cout << "Jacobian of energy with respect to x = " << W_d << std::endl;
+
+    Eigen::MatrixXd acceleration = -deformedMesh.M.cwiseInverse() * W_d;
+    // TODO not sure if Massmatrix changes from time to time
 
 
-
-
-    //addShellBendingForce(residual);
-    //addShellBendingHessian(K);
 
     // Solve for displacement increment du
     //Eigen::VectorXd du;
@@ -85,10 +89,6 @@ bool DiscreteShell::advanceOneStep(int step) {
     //}
 
     //solve ODE of motion
-
-
-
-
 
     // given displacement increment du, dt, V_undeformed=xn
     // calculate acceleration
@@ -110,66 +110,37 @@ bool DiscreteShell::advanceOneStep(int step) {
 
 
 
-dual DiscreteShell::totalBendingEnergy() {
+var DiscreteShell::totalBendingEnergy() {
     int nE = undeformedMesh.uE.rows();
     assert(undeformedMesh.uE.rows() == deformedMesh.uE.rows());
 
     DualVector angles_u(nE), angles_d(nE);
     DualVector stiffness_u(nE), stiffness_d(nE);
     DualVector heights(nE), norms(nE);
-    DualVector flex(nE); //flexural energy per undirected edge
 
 
     // Calculate the dihedral angles and the stiffness of the mesh
     undeformedMesh.calculateDihedralAngle(angles_u, stiffness_u);
+    std::cout << angles_u.sum() << std::endl;
+
     deformedMesh.calculateDihedralAngle(angles_d, stiffness_d);
-
-
     deformedMesh.computeAverageHeights(heights);
-
     deformedMesh.computeEdgeNorms(norms);
 
 
-    flex = ((angles_u - angles_d).array().square() * norms.array()) / heights.array();
+    DualVector flex(nE); //flexural energy per undirected edge
+    auto mask = (heights.array() != 0).cast<var>();
+    flex = mask * (((angles_u - angles_d).array().square() * norms.array()) / heights.array());
 
-    // Handle case when heights entries are 0
-    flex = flex.unaryExpr([](dual val) { return std::isfinite(val.val) ? val : dual(0.0); });
+    std::cout << flex.sum() <<  std::endl;
+
+
+    //TODO multiply flex with Stiffness Matrix
 
 
     return flex.sum();
 }
 
-
-
-
-
-//dual DiscreteShell::edgeBendingEnergy(int edgeIndex) {
-//    // Retrieve the edge from both undeformed and deformed mesh configurations
-//    Edge& edge_undeformed = undeformedMesh.edgeList[edgeIndex];
-//    Edge& edge_deformed = deformedMesh.edgeList[edgeIndex];
-//
-//    // Calculate the length of the edge in the undeformed configuration
-//    Eigen::Matrix<dual, 3, 1> v1 = undeformedMesh.vertices.row(edge_undeformed.v1).cast<dual>();
-//    Eigen::Matrix<dual, 3, 1> v2 = undeformedMesh.vertices.row(edge_undeformed.v2).cast<dual>();
-//    dual edgeLength = (v2 - v1).norm();
-//
-//    // Retrieve opposite vertices in undeformed and deformed configurations
-//    int oppositeVertex1 = findOppositeVertex(undeformedMesh.faces, edge_undeformed.v1, edge_undeformed.v2);
-//    int oppositeVertex2 = findOppositeVertex(deformedMesh.faces, edge_deformed.v1, edge_deformed.v2);
-//
-//    // Calculate heights in undeformed and deformed configurations
-//    dual h1 = computeHeight(v1, v2, undeformedMesh.vertices.row(oppositeVertex1).cast<dual>());
-//    dual h2 = computeHeight(v1, v2, deformedMesh.vertices.row(oppositeVertex2).cast<dual>());
-//    dual he = (h1 + h2) / 6.0;
-//
-//    // Calculate the difference in dihedral angles between deformed and undeformed configurations
-//    dual angleDifference = edge_deformed.dihedralAngle - edge_undeformed.dihedralAngle.cast<dual>();
-//
-//    // Compute the bending energy contribution of this edge
-//    dual bendingEnergy = pow(angleDifference, 2) * (edgeLength / he);
-//
-//    return bendingEnergy;
-//}
 
 
 

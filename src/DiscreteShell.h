@@ -39,7 +39,7 @@ private:
     // Energy and force computation
     void addShellBendingForce(Eigen::VectorXd& residual);
     void addShellBendingHessian(Eigen::SparseMatrix<double>& K);
-    dual totalBendingEnergy();
+    var totalBendingEnergy();
 
 
     // Time integration (Newmark scheme)

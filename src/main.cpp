@@ -78,6 +78,7 @@ bool load_mesh(string filename) {
     return true;
 }
 
+
 int main(int argc, char* argv[]) {
     if (argc != 2) {
         cout << "Usage thin_shells mesh.off>" << endl;
@@ -99,10 +100,19 @@ int main(int argc, char* argv[]) {
         // menu.draw_viewer_menu();
     };
 
+    //auto f = [](Dual3DVector x) -> dual {
+    //    return 2*x(0) + 3*x(1) + 5*x(2);
+    //    };
+
+    //auto f = [](dual x) -> dual {
+    //    return 2 * x;
+    //    };
+
+
 
     //initialize discrete shell
-    ds = DiscreteShell();
-    ds.initializeMesh(V, F);
+    //ds = DiscreteShell();
+    //ds.initializeMesh(V, F);
 
 
     //TODO initialize handle array
@@ -132,7 +142,7 @@ bool callback_pre_draw(Viewer& viewer) {
         int end_step = (int)(floor(anim_t) + 1) % total_steps;
         
         //TODO advance time step of discrete shell
-        //ds.advanceOneStep(begin_step);
+        ds.advanceOneStep(begin_step);
         
         //TODO change/add function in discrete shell class which returns the resulting V:Vertices Matrix
 
