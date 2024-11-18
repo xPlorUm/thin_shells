@@ -7,10 +7,7 @@ Maybe we should change the function names since they're currently the same as th
 #include <iostream>
 #include <igl/readOBJ.h>
 #include <igl/edges.h>
-//#include <autodiff/forward/dual/dual.hpp>
-//#include <autodiff/forward/dual/eigen.hpp>
 
-#include "Mesh.h"
 
 
 
@@ -62,31 +59,40 @@ bool DiscreteShell::advanceOneStep(int step) {
     std::cout << "Time step: " << step * dt << "s" << std::endl;
 
     Eigen::VectorXd residual = external_force;
-    Eigen::SparseMatrix<double> K; // Stiffness matrix
 
+    int nV = deformedMesh.V.rows();
     // Compute bending energy and forces
-    double energy = 0.0;
-    //energy = computeTotalEnergy();
+    //dual energy = totalBendingEnergy();
+
+    //TODO Compute derivative of energy
+    auto energy_func = [this]() {
+        return totalBendingEnergy();
+        };
+    DualVector gx = gradient(energy_func, wrt(deformedMesh.V), at(deformedMesh.V));
+
+
+
+
     //addShellBendingForce(residual);
     //addShellBendingHessian(K);
 
     // Solve for displacement increment du
-    Eigen::VectorXd du;
-    bool success = linearSolve(K, residual, du);
-    if (!success) {
-        std::cout << "Linear solve failed." << std::endl;
-        return false;
-    }
+    //Eigen::VectorXd du;
+    //bool success = linearSolve(K, residual, du);
+    //if (!success) {
+    //    std::cout << "Linear solve failed." << std::endl;
+    //    return false;
+    //}
 
     //solve ODE of motion
 
-    //Eigen::Matrix<dual, Eigen::Dynamic, Eigen::Dynamic> x_matrix(n, 3);
+
 
 
 
     // given displacement increment du, dt, V_undeformed=xn
     // calculate acceleration
-    // use auto differentiation?
+
     //Eigen::VectorXd acceleration = K.inverse() * du;
 
     // Newmark Integration
@@ -104,36 +110,34 @@ bool DiscreteShell::advanceOneStep(int step) {
 
 
 
-//void DiscreteShell::totalBendingEnergy(Eigen::VectorXd energy) {
-//    int nE = undeformedMesh.uE.rows();
-//    assert(undeformedMesh.uE.rows() == deformedMesh.uE.rows());
-//
-//
-//    // Calculate the dihedral angles and the stiffness of the mesh
-//    Eigen::VectorXd angles_u, angles_d, stiffness_u, stiffness_d;
-//    undeformedMesh.calculateDihedralAngle(angles_u, stiffness_u);
-//    deformedMesh.calculateDihedralAngle(angles_d, stiffness_d);
-//
-//
-//    Eigen::VectorXd heights;
-//    deformedMesh.computeAverageHeights(heights);
-//
-//    Eigen::VectorXd norms;
-//    deformedMesh.computeEdgeNorms(norms);
-//
-//
-//    // TODO Stiffness correct??
-//    Eigen::VectorXd flex(nE); //flexural energy per undirected edge
-//    flex = stiffness_d.array() * ((angles_u - angles_d).array().square() * norms.array()) / heights.array();
+dual DiscreteShell::totalBendingEnergy() {
+    int nE = undeformedMesh.uE.rows();
+    assert(undeformedMesh.uE.rows() == deformedMesh.uE.rows());
+
+    DualVector angles_u(nE), angles_d(nE);
+    DualVector stiffness_u(nE), stiffness_d(nE);
+    DualVector heights(nE), norms(nE);
+    DualVector flex(nE); //flexural energy per undirected edge
+
+
+    // Calculate the dihedral angles and the stiffness of the mesh
+    undeformedMesh.calculateDihedralAngle(angles_u, stiffness_u);
+    deformedMesh.calculateDihedralAngle(angles_d, stiffness_d);
+
+
+    deformedMesh.computeAverageHeights(heights);
+
+    deformedMesh.computeEdgeNorms(norms);
+
+
+    flex = ((angles_u - angles_d).array().square() * norms.array()) / heights.array();
 
     // Handle case when heights entries are 0
-    //flex = flex.unaryExpr([](double val) { return std::isfinite(val) ? val : 0.0; });
+    flex = flex.unaryExpr([](dual val) { return std::isfinite(val.val) ? val : dual(0.0); });
 
 
-    // Summed up bending energy per vertex
-    //energy = deformedMesh.IN * flex;
-
-//}
+    return flex.sum();
+}
 
 
 

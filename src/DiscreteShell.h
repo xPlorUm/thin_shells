@@ -5,6 +5,9 @@
 #include <Eigen/Sparse>
 #include "Mesh.h"
 
+
+
+
 class DiscreteShell {
 public:
     // Constructor
@@ -36,7 +39,7 @@ private:
     // Energy and force computation
     void addShellBendingForce(Eigen::VectorXd& residual);
     void addShellBendingHessian(Eigen::SparseMatrix<double>& K);
-    void totalBendingEnergy(Eigen::VectorXd energy);
+    dual totalBendingEnergy();
 
 
     // Time integration (Newmark scheme)
