@@ -13,6 +13,11 @@
 //activate this for alternate UI (easier to debug but no interactive updates, turn this OFF for your report)
 //#define UPDATE_ONLY_ON_UP
 
+#include <string.h>
+std::string PATH = "C:\\Users\\cedri\\source\\repos\\thin_shells\\data\\";
+//string file = "paper-plane-subd.off";
+std::string file = "old_assignment\\woody-hi.off";
+
 using namespace std;
 using namespace Eigen;
 using Viewer = igl::opengl::glfw::Viewer;
@@ -74,9 +79,12 @@ bool load_mesh(string filename) {
 int main(int argc, char* argv[]) {
     if (argc != 2) {
         cout << "Usage : thin_shells <path-to-mesh>.off>" << endl;
-        return 1;
+        ds.initializeFromFile(PATH + file);
     }
-    ds.initializeFromFile(argv[1]);
+    else {
+        ds.initializeFromFile(argv[1]);
+    }
+
     // Initialize Viewer
     viewer.data().clear();
     auto V = ds.getPositions();
