@@ -108,6 +108,44 @@ bool DiscreteShell::advanceOneStep(int step) {
     }
     return false;
 }
+    std::cout << "Time step: " << step * dt << "s" << std::endl;
+
+    Eigen::VectorXd residual = external_force;
+
+
+    auto energy_f = [this]() -> var {
+        return totalBendingEnergy();
+        };
+
+    // Derivative and forward pass of Bending energy function
+    // Shape of derivative is (#V, 3)
+    var energy = energy_f(); // forward
+    DualVector x = Eigen::Map<DualVector>(deformedMesh.V.data(), deformedMesh.V.size(), 1);
+    Eigen::MatrixXd W_d = Eigen::Map<Eigen::MatrixXd>(gradient(energy, x).data(), deformedMesh.V.rows(), deformedMesh.V.cols()); // backward wrt m1.x
+
+    std::cout << x << std::endl;
+    std::cout << "x = " << x << std::endl;
+    std::cout << "Jacobian of energy with respect to x = " << W_d << std::endl;
+
+    Eigen::MatrixXd acceleration = -deformedMesh.M.cwiseInverse() * W_d;
+    // TODO not sure if Massmatrix changes from time to time
+
+
+
+    // Solve for displacement increment du
+    //Eigen::VectorXd du;
+    //bool success = linearSolve(K, residual, du);
+    //if (!success) {
+    //    std::cout << "Linear solve failed." << std::endl;
+    //    return false;
+    //}
+
+    //solve ODE of motion
+
+    // given displacement increment du, dt, V_undeformed=xn
+    // calculate acceleration
+
+    //Eigen::VectorXd acceleration = K.inverse() * du;
 
 void DiscreteShell::computeStrechingForces(Eigen::MatrixX3d &forces) {
     // TODO : that should use baraff triangle methods.
@@ -134,22 +172,47 @@ void DiscreteShell::computeStrechingForces(Eigen::MatrixX3d &forces) {
     }
 }
 
-// Compute total energy (only bending energy in this case)
-double DiscreteShell::computeTotalEnergy() {
-    double energy = 0.0;
-    addShellBendingEnergy(energy);
-    return energy;
+
+
+var DiscreteShell::totalBendingEnergy() {
+    int nE = undeformedMesh.uE.rows();
+    assert(undeformedMesh.uE.rows() == deformedMesh.uE.rows());
+
+    DualVector angles_u(nE), angles_d(nE);
+    DualVector stiffness_u(nE), stiffness_d(nE);
+    DualVector heights(nE), norms(nE);
+
+
+    // Calculate the dihedral angles and the stiffness of the mesh
+    undeformedMesh.calculateDihedralAngle(angles_u, stiffness_u);
+    std::cout << angles_u.sum() << std::endl;
+
+    deformedMesh.calculateDihedralAngle(angles_d, stiffness_d);
+    deformedMesh.computeAverageHeights(heights);
+    deformedMesh.computeEdgeNorms(norms);
+
+
+    DualVector flex(nE); //flexural energy per undirected edge
+    auto mask = (heights.array() != 0).cast<var>();
+    flex = mask * (((angles_u - angles_d).array().square() * norms.array()) / heights.array());
+
+    std::cout << flex.sum() <<  std::endl;
+
+
+    //TODO multiply flex with Stiffness Matrix
+
+
+    return flex.sum();
 }
 
-// TODO Add bending energy
-void DiscreteShell::addShellBendingEnergy(double& energy) {
-    // Calculate bending energy based on deformed configuration
-}
+
+
 
 // TODO Add bending force to residual
 void DiscreteShell::addShellBendingForce(Eigen::VectorXd& residual) {
     // Add bending forces to the residual vector
 }
+
 
 // TODO Add bending Hessian (stiffness matrix entries)
 void DiscreteShell::addShellBendingHessian(Eigen::SparseMatrix<double>& K) {
@@ -160,21 +223,19 @@ void DiscreteShell::addShellBendingHessian(Eigen::SparseMatrix<double>& K) {
 // Here, you can experiment with different solvers by changing this function.
 // Thanks ChatGPT for the placeholder code
 bool DiscreteShell::linearSolve(Eigen::SparseMatrix<double>& K, const Eigen::VectorXd& residual, Eigen::VectorXd& du) {
-    // TODO: Choose and set up a solver here, based on your needs
-    // Example: Using Conjugate Gradient solver with placeholder code (replace with actual solver if desired)
 
-    // Eigen::ConjugateGradient<Eigen::SparseMatrix<double>, Eigen::Lower|Eigen::Upper> solver;
-    // solver.setTolerance(1e-8); // Adjust tolerance for convergence
-    // solver.compute(K);
-    // if (solver.info() != Eigen::Success) {
-    //     std::cout << "Solver initialization failed." << std::endl;
-    //     return false;
-    // }
-    // du = solver.solve(residual);
-    // if (solver.info() != Eigen::Success) {
-    //     std::cout << "Solver failed to converge." << std::endl;
-    //     return false;
-    // }
+     Eigen::ConjugateGradient<Eigen::SparseMatrix<double>, Eigen::Lower|Eigen::Upper> solver;
+     solver.setTolerance(Epsilon); // Adjust tolerance for convergence
+     solver.compute(K);
+     if (solver.info() != Eigen::Success) {
+         std::cout << "Solver initialization failed." << std::endl;
+         return false;
+     }
+     du = solver.solve(residual);
+     if (solver.info() != Eigen::Success) {
+         std::cout << "Solver failed to converge." << std::endl;
+         return false;
+     }
     
     // Placeholder return value; change this once the solver is implemented.
     return true;
@@ -187,8 +248,8 @@ void DiscreteShell::buildSystemMatrix(Eigen::SparseMatrix<double>& K) {
 
 // Update dynamic states (velocity and previous position) after each time step
 void DiscreteShell::updateDynamicStates() {
-    vn = (deformed - xn) / dt; // Update velocity
-    xn = deformed; // Update previous position for the next time step
+    //vn = (V_deformed - xn) / dt; // Update velocity
+    //xn = V_deformed; // Update previous position for the next time step
 }
 
 const Eigen::MatrixXd* DiscreteShell::getPositions() {

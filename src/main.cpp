@@ -1,4 +1,5 @@
 #include <igl/read_triangle_mesh.h>
+#include <igl/readOBJ.h>
 #include <igl/opengl/glfw/Viewer.h>
 #include <igl/opengl/glfw/imgui/ImGuiMenu.h>
 #include <igl/rotate_by_quat.h>
@@ -76,6 +77,7 @@ bool load_mesh(string filename) {
     return true;
 }
 
+
 int main(int argc, char* argv[]) {
     if (argc != 2) {
         cout << "Usage : thin_shells <path-to-mesh>.off>" << endl;
@@ -104,6 +106,28 @@ int main(int argc, char* argv[]) {
     menu.callback_draw_viewer_menu = [&]() {
         // Draw parent menu content (optional, can be commented out)
         // menu.draw_viewer_menu();
+
+    //auto f = [](Dual3DVector x) -> dual {
+    //    return 2*x(0) + 3*x(1) + 5*x(2);
+    //    };
+
+    //auto f = [](dual x) -> dual {
+    //    return 2 * x;
+    //    };
+
+
+
+    //initialize discrete shell
+    //ds = DiscreteShell();
+    //ds.initializeMesh(V, F);
+
+
+    //TODO initialize handle array
+
+    //TODO initialize DiscreteShell with existing mesh
+
+    //TODO pass handle array to Discrete Shell
+
 
         // Add a button to start/stop the animation
         if (ImGui::Button(animation ? "Stop Animation" : "Start Animation")) {
