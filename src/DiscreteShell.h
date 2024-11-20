@@ -37,8 +37,6 @@ const Eigen::MatrixXd* getPositions();
 const Eigen::MatrixXi* getFaces();
 
 private:
-    // Numerical stability
-    double Epsilon = 1e-4;
 
     // Physical properties
     double dt; // Time step
@@ -59,7 +57,6 @@ private:
     Eigen::MatrixX3d forces; // Forces applied point-wise.
     Eigen::MatrixX3d bending_forces; // Bending forces applied point-wise.
 
-
     // Time integration (Newmark scheme)
     void updateDynamicStates();
     bool linearSolve(Eigen::SparseMatrix<double>& K, const Eigen::VectorXd& residual, Eigen::VectorXd& du);
@@ -74,6 +71,7 @@ private:
     void computeStrechingForces(Eigen::MatrixX3d& forces); // Compute stretching forces
     void computeBendingForces(Eigen::MatrixX3d& bending_forces); // Compute bending forces
     var totalBendingEnergy();
+    var BendingEnergy(int i);
 
 
 };
