@@ -1,6 +1,5 @@
 #include "Mesh.h"
 
-#include <igl/massmatrix.h>
 #include <igl/facet_adjacency_matrix.h>
 #include <igl/per_face_normals.h>
 #include <igl/edge_flaps.h>
@@ -13,14 +12,13 @@ Mesh::Mesh() {
 Mesh::Mesh(const Eigen::MatrixXd& V_, const Eigen::MatrixXi& F_)
     : V(V_), F(F_) {
     igl::edge_flaps(F, uE, EMAP, EF, EI); // Compute the edges and the edge-face incidence
-    igl::massmatrix(V_, F, igl::MASSMATRIX_TYPE_DEFAULT, M); // Compute the mass matrix
 }
 
 
 void Mesh::calculateDihedralAngle(DualVector& angles, DualVector& stiffness) {
     // Initialize them to the right size
     angles.resize(uE.rows());
-    stiffness.resize(uE.rows());
+    //stiffness.resize(uE.rows());
 
     igl::per_face_normals(V, F, FN); // Compute per face normals
     for (int i = 0; i < EF.rows(); i++) {
@@ -34,9 +32,9 @@ void Mesh::calculateDihedralAngle(DualVector& angles, DualVector& stiffness) {
         angles(i) = angle;
 
         //also determine stiffness
-        if (abs(angle) > 0.0) { // Apply a threshold to determine if the edge is a crease
-            stiffness(i) = var(0.5f);
-        }
+        //if (abs(angle) > 0.0) { // Apply a threshold to determine if the edge is a crease
+        //    stiffness(i) = var(0.5f);
+        //}
     }
 }
 

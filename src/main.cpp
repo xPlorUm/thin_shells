@@ -107,28 +107,6 @@ int main(int argc, char* argv[]) {
         // Draw parent menu content (optional, can be commented out)
         // menu.draw_viewer_menu();
 
-    //auto f = [](Dual3DVector x) -> dual {
-    //    return 2*x(0) + 3*x(1) + 5*x(2);
-    //    };
-
-    //auto f = [](dual x) -> dual {
-    //    return 2 * x;
-    //    };
-
-
-
-    //initialize discrete shell
-    //ds = DiscreteShell();
-    //ds.initializeMesh(V, F);
-
-
-    //TODO initialize handle array
-
-    //TODO initialize DiscreteShell with existing mesh
-
-    //TODO pass handle array to Discrete Shell
-
-
         // Add a button to start/stop the animation
         if (ImGui::Button(animation ? "Stop Animation" : "Start Animation")) {
             animation = !animation; // Toggle animation state

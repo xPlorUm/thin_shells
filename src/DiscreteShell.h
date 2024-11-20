@@ -5,8 +5,7 @@
 #include <Eigen/Sparse>
 #include "Mesh.h"
 #include <iostream>
-
-
+#include <igl/massmatrix.h>
 
 
 class DiscreteShell {
@@ -16,9 +15,6 @@ public:
     // Destructor
     ~DiscreteShell();
 
-    // Initialize from an OBJ file
-    DiscreteShell::DiscreteShell();
-    void initializeMesh(const Eigen::MatrixXd& V, const Eigen::MatrixXi& F); 
     void initializeFromFile(const std::string& filename);
 
     // Advance one time step
@@ -52,25 +48,16 @@ private:
     // State variables
     Mesh deformedMesh;
     Mesh undeformedMesh;
-    Eigen::VectorXd external_force; // External forces applied to the shell
-    Eigen::VectorXd u; // Displacement vector
-    Eigen::VectorXd vn; // Velocity vector
-    Eigen::VectorXd xn; // Previous position vector (Newmark integration)
 
     Eigen::MatrixXi *F; // Faces of the shell
-    Eigen::MatrixXd *V;
+    Eigen::MatrixXd *V; // Current mesh
+    Eigen::MatrixXd V_rest; // Undeformed mesh
     Eigen::MatrixXd *Velocity; // Velocity of the shell (point-wise)
     Eigen::MatrixXi *E; // Edges of the shell
     Eigen::VectorXd E_length_rest ; // Rest length of edges
-    // Mass matrix.
-    Eigen::MatrixXd M_inv;
-    // Forces applied point-wise.
-    Eigen::MatrixX3d forces;
-
-    // Energy and force computation
-    void addShellBendingForce(Eigen::VectorXd& residual);
-    void addShellBendingHessian(Eigen::SparseMatrix<double>& K);
-    var totalBendingEnergy();
+    Eigen::SparseMatrix<double> M; // Massmatrix
+    Eigen::MatrixX3d forces; // Forces applied point-wise.
+    Eigen::MatrixX3d bending_forces; // Bending forces applied point-wise.
 
 
     // Time integration (Newmark scheme)
@@ -84,7 +71,9 @@ private:
     // Helper function to build system matrix
     void buildSystemMatrix(Eigen::SparseMatrix<double>& K);
 
-    void computeStrechingForces(Eigen::MatrixX3d &forces); // Compute stretching forces
+    void computeStrechingForces(Eigen::MatrixX3d& forces); // Compute stretching forces
+    void computeBendingForces(Eigen::MatrixX3d& bending_forces); // Compute bending forces
+    var totalBendingEnergy();
 
 
 };

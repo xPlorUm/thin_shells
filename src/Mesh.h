@@ -25,11 +25,8 @@ class Mesh {
 public:
     //dynamic
     DualMatrix V;  // Matrix storing vertex positions (#V, 3)
-    Eigen::MatrixXd V_o; // for mass matrix computations
     DualMatrix FN; // Normals of each face (#F, 3)
-    Eigen::SparseMatrix<double> M; // Massmatrix
 
-    DualMatrix x;
 
     //static
     Eigen::MatrixXi F;  // Matrix storing indices of vertices forming each face (#F, 3)
