@@ -14,16 +14,7 @@ FetchContent_MakeAvailable(libigl)
 igl_include(glfw)
 igl_include(imgui)
 
-# Add autodiff to the project
-add_subdirectory(autodiff)  # Replace with the actual path where autodiff is located
-
-
 # Add your project files
 FILE(GLOB SRCFILES src/*.cpp)
 add_executable(${PROJECT_NAME} ${SRCFILES})
-#target_link_libraries(${PROJECT_NAME} igl::core igl::imgui igl::glfw)
-
-# Link libigl and autodiff libraries to your project
-target_link_libraries(${PROJECT_NAME} 
-    PRIVATE igl::core igl::imgui igl::glfw autodiff::autodiff
-)
+target_link_libraries(${PROJECT_NAME} igl::core igl::imgui igl::glfw)
