@@ -43,12 +43,12 @@ public:
     std::vector<std::vector<int>> VE; // VE[i] will contain the edges incident to vertex i
 
 
-    Mesh::Mesh();
+    Mesh();
 
     // Constructor to initialize the mesh with vertices, faces
     Mesh(const Eigen::MatrixXd& V_, const Eigen::MatrixXi& F_);
 
-    void Mesh::calculateDihedralAngles(int i, DualVector& angles, DualVector& stiffness);
+    void calculateDihedralAngles(int i, DualVector& angles, DualVector& stiffness);
     void computeAverageHeights(int i, DualVector& heights);
     void computeEdgeNorms(int i, DualVector& norms);
 
@@ -62,7 +62,7 @@ public:
 private:
     // Computes the height of one face given the indec of the corner {0, 1, 2}
     var computeFaceHeight(const Eigen::RowVector3i& face, const int corner);
-    void Mesh::computeFaceNormal(int faceI, Dual3DVector& n);
+    void computeFaceNormal(int faceI, Dual3DVector& n);
 
 };
 
