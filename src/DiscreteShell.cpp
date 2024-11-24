@@ -13,7 +13,8 @@ Maybe we should change the function names since they're currently the same as th
 
 // Constructor
 DiscreteShell::DiscreteShell()
-    : dt(0.03), simulation_duration(10.0), bending_stiffness(1.0),
+    : dt(0.03), simulation_duration(10.0),
+    // bending_stiffness(1.0),
       beta(0.25), gamma(0.5)
 {
     F = new Eigen::MatrixXi(0, 3);
@@ -150,7 +151,10 @@ void DiscreteShell::computeStrechingForces(Eigen::MatrixX3d &forces) {
         forces.row(v2) -= fi;
     }
 }
+
+
 void DiscreteShell::computeBendingForces(Eigen::MatrixX3d& bending_forces) {
+    
     bending_forces.setZero(V_rest.rows(), 3);
 
     for (int i = 0; i < V_rest.rows(); i++) {
@@ -165,21 +169,30 @@ void DiscreteShell::computeBendingForces(Eigen::MatrixX3d& bending_forces) {
         DualVector x = deformedMesh.V.row(i);
         auto grad = gradient(energy, x);
         bending_forces.row(i) = -Eigen::Map<Eigen::Vector3d>(grad.data());
-
     }
+
+    // type mismatch
+    auto stiffness_vec = Eigen::Map<Eigen::Vector3d>(undeformedMesh.stiffness.data());
+
+    // Scale bending forces by the diagonal stiffness matrix
+    bending_forces = stiffness_vec.asDiagonal() * bending_forces;
+
 }
 
 var DiscreteShell::BendingEnergy(int i) {
     DualVector angles_u, angles_d;
-    DualVector stiffness_u, stiffness_d;
+    // DualVector stiffness_u, stiffness_d;
     DualVector heights, norms;
 
-    undeformedMesh.calculateDihedralAngles(i, angles_u, stiffness_u);
-    deformedMesh.calculateDihedralAngles(i, angles_d, stiffness_d);
+    // why is this being done every time we calculate bending energy for the undeformed mesh?
+    // maybe change it so that it is done once at the start and afterwards only change when there is
+    // a plastic deformation, i.e. the angle threshold is exceeded
+    undeformedMesh.calculateDihedralAngles(i, angles_u);
+    deformedMesh.calculateDihedralAngles(i, angles_d);
     deformedMesh.computeAverageHeights(i, heights);
     deformedMesh.computeEdgeNorms(i, norms);
     //flexural energy per undirected edge
-    DualVector flex = (((angles_u - angles_d).array().square() * norms.array()) / heights.array());
+    DualVector flex = deformedMesh.stiffness.array() * (((angles_u - angles_d).array().square() * norms.array()) / heights.array());
     return flex.sum();
 }
 

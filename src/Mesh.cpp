@@ -23,13 +23,17 @@ Mesh::Mesh(const Eigen::MatrixXd& V_, const Eigen::MatrixXi& F_)
         VE[uE(e, 0)].push_back(e);
         VE[uE(e, 1)].push_back(e);
     }
+
+    // set stiffness to 1 for all edges
+    stiffness = DualVector(uE.rows());
+    stiffness.setOnes();
 }
 
 //Vertex wise computation
-void Mesh::calculateDihedralAngles(int i, DualVector& angles, DualVector& stiffness) {
+void Mesh::calculateDihedralAngles(int i, DualVector& angles) {
     std::vector<int> incEdges = VE[i];
     angles.setZero(incEdges.size());
-    stiffness.setZero(incEdges.size());
+    //stiffness.setZero(incEdges.size());
     int ni = 0;
     for (int edgeI : incEdges) {
         if (EF(edgeI, 1) == -1 || EF(edgeI, 0) == -1) { //boundary edge
@@ -48,8 +52,9 @@ void Mesh::calculateDihedralAngles(int i, DualVector& angles, DualVector& stiffn
         angles(ni) = acos(cos);
 
         //also determine stiffness
-        if (abs(angles(ni)) > 0.0) { // Apply a threshold to determine if the edge is a crease
+        if (abs(angles(ni)) > plastic_deformation_threshold) { // Apply a threshold to determine if the edge is a crease
             stiffness(ni) = var(0.5f);
+            // TODO: change rest angle
         }
         ni++;
     }

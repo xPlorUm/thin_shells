@@ -27,6 +27,7 @@ public:
     //dynamic
     DualMatrix V;  // Matrix storing vertex positions (#V, 3)
     DualMatrix FN; // Normals of each face (#F, 3)
+    DualVector stiffness; // Stiffness of each edge (#uE, 1)
 
     var Epsilon = 1e-4;
 
@@ -48,12 +49,12 @@ public:
     // Constructor to initialize the mesh with vertices, faces
     Mesh(const Eigen::MatrixXd& V_, const Eigen::MatrixXi& F_);
 
-    void calculateDihedralAngles(int i, DualVector& angles, DualVector& stiffness);
+    void calculateDihedralAngles(int i, DualVector& angles);
     void computeAverageHeights(int i, DualVector& heights);
     void computeEdgeNorms(int i, DualVector& norms);
 
     // Computes and saves the dihedral angles of the current mesh (#uE, 1) and also the Stiffness Matrix (#uE, 1)
-    void calculateDihedralAngles(DualVector& angles, DualVector& stiffness);
+    void calculateDihedralAngles(DualVector& angles);
     // Computes and saves the third of the average heights of the unique mesh edges into a vector(#uE, 1)
     void computeAverageHeights(DualVector& heights);
     // Saves the norms of the undirected Edges of the mesh and saves them in a vector (#uE, 1)
@@ -63,6 +64,7 @@ private:
     // Computes the height of one face given the indec of the corner {0, 1, 2}
     var computeFaceHeight(const Eigen::RowVector3i& face, const int corner);
     void computeFaceNormal(int faceI, Dual3DVector& n);
+    static constexpr double plastic_deformation_threshold = M_PI / 4.0;
 
 };
 
