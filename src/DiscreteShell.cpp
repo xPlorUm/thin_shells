@@ -156,26 +156,25 @@ void DiscreteShell::computeStrechingForces(Eigen::MatrixX3d &forces) {
 void DiscreteShell::computeBendingForces(Eigen::MatrixX3d& bending_forces) {
     
     bending_forces.setZero(V_rest.rows(), 3);
+    //Eigen::VectorXd stiffness_vec = Eigen::VectorXd::Zero(V_rest.rows());
 
     for (int i = 0; i < V_rest.rows(); i++) {
         // Add bending forces
         auto energy_f = [this](int i) -> var {
             return BendingEnergy(i);
             };
-
+        
         // Derivative and forward pass of Bending energy function
         // Shape of derivative is (#V, 3)
         var energy = energy_f(i); // forward
         DualVector x = deformedMesh.V.row(i);
         auto grad = gradient(energy, x);
         bending_forces.row(i) = -Eigen::Map<Eigen::Vector3d>(grad.data());
+        //stiffness_vec[i] = var(deformedMesh.stiffness[i]);
     }
 
-    // type mismatch
-    auto stiffness_vec = Eigen::Map<Eigen::Vector3d>(undeformedMesh.stiffness.data());
-
     // Scale bending forces by the diagonal stiffness matrix
-    bending_forces = stiffness_vec.asDiagonal() * bending_forces;
+    // bending_forces = stiffness_vec.asDiagonal() * bending_forces;
 
 }
 
@@ -184,15 +183,15 @@ var DiscreteShell::BendingEnergy(int i) {
     // DualVector stiffness_u, stiffness_d;
     DualVector heights, norms;
 
-    // why is this being done every time we calculate bending energy for the undeformed mesh?
-    // maybe change it so that it is done once at the start and afterwards only change when there is
-    // a plastic deformation, i.e. the angle threshold is exceeded
     undeformedMesh.calculateDihedralAngles(i, angles_u);
     deformedMesh.calculateDihedralAngles(i, angles_d);
     deformedMesh.computeAverageHeights(i, heights);
     deformedMesh.computeEdgeNorms(i, norms);
     //flexural energy per undirected edge
-    DualVector flex = deformedMesh.stiffness.array() * (((angles_u - angles_d).array().square() * norms.array()) / heights.array());
+    // std::cout << deformedMesh.stiffness.size() << std::endl;
+    // std::cout << (((angles_u - angles_d).array().square() * norms.array()) / heights.array()).size() << std::endl;
+    // DualVector flex = deformedMesh.stiffness.array() * (((angles_u - angles_d).array().square() * norms.array()) / heights.array());
+    DualVector flex = (((angles_u - angles_d).array().square() * norms.array()) / heights.array());
     return flex.sum();
 }
 
