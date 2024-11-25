@@ -27,7 +27,7 @@ public:
     //dynamic
     DualMatrix V;  // Matrix storing vertex positions (#V, 3)
     DualMatrix FN; // Normals of each face (#F, 3)
-    DualVector stiffness; // Stiffness of each edge (#uE, 1)
+    Eigen::VectorXd stiffness; // Stiffness of each edge (#uE, 1)
 
     var Epsilon = 1e-4;
 

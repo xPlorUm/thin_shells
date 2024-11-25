@@ -25,7 +25,7 @@ Mesh::Mesh(const Eigen::MatrixXd& V_, const Eigen::MatrixXi& F_)
     }
 
     // set stiffness to 1 for all edges
-    stiffness = DualVector(uE.rows());
+    stiffness = Eigen::VectorXd(uE.rows());
     stiffness.setOnes();
 }
 
@@ -53,7 +53,7 @@ void Mesh::calculateDihedralAngles(int i, DualVector& angles) {
 
         //also determine stiffness
         if (abs(angles(ni)) > plastic_deformation_threshold) { // Apply a threshold to determine if the edge is a crease
-            stiffness(ni) = var(0.5f);
+            stiffness(ni) = 0.5;
             // TODO: change rest angle
         }
         ni++;
@@ -121,7 +121,7 @@ void Mesh::computeEdgeNorms(int i, DualVector& norms) {
         int v1 = uE(edgeI, 1);
 
         Dual3DVector edge = V.row(v1) - V.row(v0);
-        norms(ni) = edge.norm();
+        norms(ni) = edge.norm() / stiffness(edgeI);
         ni++;
     }
 }
