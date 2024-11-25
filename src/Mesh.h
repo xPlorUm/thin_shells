@@ -27,6 +27,8 @@ public:
     //dynamic
     DualMatrix V;  // Matrix storing vertex positions (#V, 3)
     DualMatrix FN; // Normals of each face (#F, 3)
+    Eigen::MatrixXd V_d;
+    Eigen::MatrixXd FN_d;
 
     var Epsilon = 1e-4;
 
@@ -43,6 +45,8 @@ public:
     std::vector<std::vector<int>> VE; // VE[i] will contain the edges incident to vertex i
 
 
+    Eigen::VectorXd dihedralAngles, stiffness;
+
     Mesh();
 
     // Constructor to initialize the mesh with vertices, faces
@@ -53,7 +57,13 @@ public:
     void computeEdgeNorms(int i, DualVector& norms);
 
     // Computes and saves the dihedral angles of the current mesh (#uE, 1) and also the Stiffness Matrix (#uE, 1)
-    void calculateDihedralAngles(DualVector& angles, DualVector& stiffness);
+    //void calculateAllDihedralAngles(DualVector& angles, DualVector& stiffness);
+    //void getDihedralAngles(int i, DualVector& angles, DualVector& stiffness);
+    void calculateAllDihedralAngles(Eigen::VectorXd& angles, Eigen::VectorXd& stiffness);
+    // Returns all precomputed dihedral angles of the ith vertex to all incident edges
+    void getDihedralAngles(int i, Eigen::VectorXd& angles, Eigen::VectorXd& stiffness);
+
+
     // Computes and saves the third of the average heights of the unique mesh edges into a vector(#uE, 1)
     void computeAverageHeights(DualVector& heights);
     // Saves the norms of the undirected Edges of the mesh and saves them in a vector (#uE, 1)

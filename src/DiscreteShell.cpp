@@ -48,6 +48,7 @@ void DiscreteShell::initializeFromFile(const std::string& filename) {
     igl::read_triangle_mesh(filename, *V, *F);
     V_rest = Eigen::MatrixXd(*V);
     undeformedMesh = Mesh(V_rest, *F);
+
     deformedMesh = undeformedMesh;
 
     // Set massmatrix
@@ -92,7 +93,8 @@ bool DiscreteShell::advanceOneStep(int step) {
     bending_forces = Eigen::MatrixX3d::Zero(V->rows(), 3);
 
     //only make part time bending energy because it is so slow now
-    if (step > 40) {
+    //if (step > 40) {
+    if (true) {
         std::cout << "Bending force calculated" << std::endl;
         computeBendingForces(bending_forces);
         forces += bending_forces;
@@ -170,16 +172,19 @@ void DiscreteShell::computeBendingForces(Eigen::MatrixX3d& bending_forces) {
 }
 
 var DiscreteShell::BendingEnergy(int i) {
-    DualVector angles_u, angles_d;
-    DualVector stiffness_u, stiffness_d;
+    Eigen::VectorXd angles_u, stiffness_u;
+    DualVector angles_d, stiffness_d;
     DualVector heights, norms;
 
-    undeformedMesh.calculateDihedralAngles(i, angles_u, stiffness_u);
+    undeformedMesh.getDihedralAngles(i, angles_u, stiffness_u); // don't need calculation for that
+
     deformedMesh.calculateDihedralAngles(i, angles_d, stiffness_d);
     deformedMesh.computeAverageHeights(i, heights);
     deformedMesh.computeEdgeNorms(i, norms);
+
+
     //flexural energy per undirected edge
-    DualVector flex = (((angles_u - angles_d).array().square() * norms.array()) / heights.array());
+    DualVector flex = (((angles_u.array() - angles_d.array()).square() * norms.array()) / heights.array());
     return flex.sum();
 }
 

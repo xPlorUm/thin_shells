@@ -11,8 +11,10 @@ Mesh::Mesh() {
 
 // Constructor for Mesh class
 Mesh::Mesh(const Eigen::MatrixXd& V_, const Eigen::MatrixXi& F_)
-    : V(V_), F(F_) {
+    : V(V_), F(F_), V_d(V_) {
     igl::edge_flaps(F, uE, EMAP, EF, EI); // Compute the edges and the edge-face incidence
+    calculateAllDihedralAngles(dihedralAngles, stiffness);
+
 
     // Prepare the adjacency list
     VE = std::vector<std::vector<int>>(V.rows());
@@ -41,9 +43,9 @@ void Mesh::calculateDihedralAngles(int i, DualVector& angles, DualVector& stiffn
         computeFaceNormal(EF(edgeI, 0), n0);
         computeFaceNormal(EF(edgeI, 1), n1);
         var cos = n0.dot(n1);
-        // Clamp cos value
-        if (cos == val(1.0f)) cos = cos - Epsilon;
-        if (cos == val(-1.0f)) cos = cos + Epsilon;
+        // Clamp cos value not derivable at cos == 1.0 or -1.0f
+        if (cos >= val(1.0f)) cos = 1.0f - Epsilon;
+        if (cos <= val(-1.0f)) cos = -1.0f + Epsilon;
         
         angles(ni) = acos(cos);
 
@@ -122,28 +124,49 @@ void Mesh::computeEdgeNorms(int i, DualVector& norms) {
 }
 
 
-//void Mesh::calculateDihedralAngles(DualVector& angles, DualVector& stiffness) {
-//    // Initialize them to the right size
-//    angles.resize(uE.rows());
-//    //stiffness.resize(uE.rows());
-//
-//    igl::per_face_normals(V, F, FN); // Compute per face normals
-//    for (int i = 0; i < EF.rows(); i++) {
-//        if (EF(i, 1) == -1 || EF(i, 0) == -1) { //boundary edge
-//            angles(i) = 0.0f;
-//            continue;
-//        }
-//        Dual3DVector n0 = FN.row(EF(i, 0));
-//        Dual3DVector n1 = FN.row(EF(i, 1));
-//        var angle = acos(n0.dot(n1));
-//        angles(i) = angle;
-//
-//        //also determine stiffness
-//        //if (abs(angle) > 0.0) { // Apply a threshold to determine if the edge is a crease
-//        //    stiffness(i) = var(0.5f);
-//        //}
-//    }
-//}
+//void Mesh::calculateAllDihedralAngles(DualVector& angles, DualVector& stiffness) {
+void Mesh::calculateAllDihedralAngles(Eigen::VectorXd& angles, Eigen::VectorXd& stiffness) {
+    //// Initialize them to the right size
+    angles.resize(uE.rows());
+    stiffness.resize(uE.rows());
+
+    igl::per_face_normals(V_d, F, FN_d); // Compute per face normals have to be normalized
+    for (int i = 0; i < EF.rows(); i++) {
+        if (EF(i, 1) == -1 || EF(i, 0) == -1) { //boundary edge
+            angles(i) = 0.0f;
+            continue;
+        }
+        //Dual3DVector n0 = FN.row(EF(i, 0));
+        //Dual3DVector n1 = FN.row(EF(i, 1));        
+        //var cos = n0.dot(n1);
+        //if (cos >= val(1.0f)) cos = 1.0f - Epsilon;
+        //if (cos <= val(-1.0f)) cos = -1.0f + Epsilon;
+        //var angle = acos(cos);
+        //angles(i) = angle;
+
+        Eigen::Vector3d n0 = FN_d.row(EF(i, 0));
+        Eigen::Vector3d n1 = FN_d.row(EF(i, 1));
+        double cos = n0.dot(n1);
+        if (cos >= 1.0f) cos = 1.0f - 1e-4;
+        if (cos <= -1.0f) cos = -1.0f + 1e-4;
+
+        double angle = acos(cos);
+        angles(i) = angle;
+
+    }
+}
+
+//void Mesh::getDihedralAngles(int i, DualVector& angles, DualVector& stiffness) {
+void Mesh::getDihedralAngles(int i, Eigen::VectorXd& angles, Eigen::VectorXd& stiffness) {
+    int nE = VE[i].size();
+    angles.resize(nE);
+    stiffness.resize(nE);
+    int ni = 0;
+    for (int n : VE[i]) {
+        angles(ni) = dihedralAngles(n);
+        ni++;
+    }
+}
 
 
 //void Mesh::computeAverageHeights(DualVector& heights) {
