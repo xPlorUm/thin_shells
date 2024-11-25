@@ -121,7 +121,7 @@ void Mesh::computeEdgeNorms(int i, DualVector& norms) {
         int v1 = uE(edgeI, 1);
 
         Dual3DVector edge = V.row(v1) - V.row(v0);
-        norms(ni) = edge.norm() / stiffness(edgeI);
+        norms(ni) = edge.norm() * stiffness(edgeI);
         ni++;
     }
 }
