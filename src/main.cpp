@@ -15,9 +15,9 @@
 //#define UPDATE_ONLY_ON_UP
 
 #include <string.h>
-std::string PATH = "C:\\Users\\cedri\\source\\repos\\thin_shells\\data\\";
+std::string PATH = "../data/";
 //string file = "paper-plane-subd.off";
-std::string file = "old_assignment\\woody-hi.off";
+std::string file = "old_assignment/woody-hi.off";
 
 using namespace std;
 using namespace Eigen;

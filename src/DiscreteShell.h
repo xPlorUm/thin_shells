@@ -41,7 +41,7 @@ private:
     // Physical properties
     double dt; // Time step
     double simulation_duration; // Total simulation duration
-    double bending_stiffness; // Stiffness for bending energy
+    // double bending_stiffness; // Stiffness for bending energy
 
     // State variables
     Mesh deformedMesh;
