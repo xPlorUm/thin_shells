@@ -210,19 +210,19 @@ void DiscreteShell::computeBendingForces(Eigen::MatrixX3d& bending_forces) {
 var DiscreteShell::BendingEnergy(int i) {
 
     // std::cout << "Calculating bending energy for vertex " << i << std::endl;
-    DualVector angles_u, angles_d;
+    DualVector angles_d; 
+    Eigen::VectorXd angles_u;
     // DualVector stiffness_u, stiffness_d;
     DualVector heights, norms;
 
-    // TODO: store the undeformed mesh's dihedral angles and stiffness instead of recalculating them every time
-    undeformedMesh.calculateDihedralAngles(i, angles_u);
+    undeformedMesh.getDihedralAngles(i, angles_u); // don't need calculation for that
+
     deformedMesh.calculateDihedralAngles(i, angles_d);
     deformedMesh.computeAverageHeights(i, heights);
     deformedMesh.computeEdgeNorms(i, norms);
-
     //flexural energy per undirected edge
     DualVector flex = (((angles_u - angles_d).array().square() * norms.array()) / heights.array());
-    if (i == 0) std::cout << "Flexural energy for vertex " << i << " : " << flex.sum() << std::endl;
+    // if (i == 0) std::cout << "Flexural energy for vertex " << i << " : " << flex.sum() << std::endl;
     return flex.sum();
 }
 
