@@ -107,21 +107,73 @@ void DiscreteShell::initializeFromFile(const std::string& filename) {
 
 }
 
+// bool DiscreteShell::advanceOneStep(int step) {
+
+//     // Reset forces
+//     forces = Eigen::MatrixX3d::Zero(V->rows(), 3);
+//     computeStrechingForces(forces);
+
+//     bending_forces = Eigen::MatrixX3d::Zero(V->rows(), 3);
+
+//     //only make part time bending energy because it is so slow now
+//     //if (step > 40) {
+//     computeBendingForces(bending_forces);
+//     // std::cout << "Bending force calculated" << std::endl;
+//     forces += bending_forces;
+//     //}
+
+//     Eigen::MatrixX3d damping_forces = Eigen::MatrixX3d::Zero(V->rows(), 3);
+//     computeDampingForces(damping_forces);
+//     forces += damping_forces;
+
+//     // Open a file to log data (appending mode)
+//     std::ofstream dataFile;
+//     dataFile.open("vertex_data.csv", std::ios_base::app);
+
+//     // Update positions with Newton's law
+//     for (int i = 0; i < Velocity->rows(); i++) {
+//         Eigen::Vector3d force = forces.row(i);
+//         Eigen::Vector3d velocity = Velocity->row(i);
+
+//         // If we are at vertex 0, log the velocity and force
+//         // Log time, velocity, force, and position for vertex 0
+//         if (i == 0) {
+//             dataFile << num_steps++ << ","
+//                     << V->row(0).x() << "," << V->row(0).y() << "," << V->row(0).z() << ","
+//                     << velocity.x() << "," << velocity.y() << "," << velocity.z() << ","
+//                     << force.x() << "," << force.y() << "," << force.z() << ","
+//                     << bending_forces.row(0).x() << "," << bending_forces.row(0).y() << "," << bending_forces.row(0).z() << ","
+//                     << damping_forces.row(0).x() << "," << damping_forces.row(0).y() << "," << damping_forces.row(0).z() << ","
+//                     << "\n";
+//         }
+
+//         double mass_i = M.coeff(i, i);
+//         Eigen::Vector3d acceleration = 1 / mass_i * force;
+//         // actually scaling by the mass works better because it's less unstable but whatever this is "more correct"
+//         Velocity->row(i) += dt * acceleration;
+//         V->row(i) += dt * Velocity->row(i);
+//     }
+
+//     // Update deformed mesh
+//     deformedMesh.V = *V;
+
+//     // Close the file after logging
+//     dataFile.close();
+
+//     return false;
+// }
+
+
 bool DiscreteShell::advanceOneStep(int step) {
-
     // Reset forces
-    forces = Eigen::MatrixX3d::Zero(V->rows(), 3);
+    forces.setZero(V->rows(), 3);
+
+    // Compute forces
     computeStrechingForces(forces);
-
-    bending_forces = Eigen::MatrixX3d::Zero(V->rows(), 3);
-
-    //only make part time bending energy because it is so slow now
-    //if (step > 40) {
     computeBendingForces(bending_forces);
-    // std::cout << "Bending force calculated" << std::endl;
     forces += bending_forces;
-    //}
 
+    // Compute damping forces
     Eigen::MatrixX3d damping_forces = Eigen::MatrixX3d::Zero(V->rows(), 3);
     computeDampingForces(damping_forces);
     forces += damping_forces;
@@ -130,8 +182,13 @@ bool DiscreteShell::advanceOneStep(int step) {
     std::ofstream dataFile;
     dataFile.open("vertex_data.csv", std::ios_base::app);
 
-    // Update positions with Newton's law
-    for (int i = 0; i < Velocity->rows(); i++) {
+    // Compute acceleration
+    Eigen::MatrixX3d acceleration = Eigen::MatrixX3d::Zero(V->rows(), 3);
+    for (int i = 0; i < Velocity->rows(); ++i) {
+        double mass_i = M.coeff(i, i); // Mass for particle i
+        acceleration.row(i) = forces.row(i) / mass_i;
+
+        // If we are at vertex 0, log
         Eigen::Vector3d force = forces.row(i);
         Eigen::Vector3d velocity = Velocity->row(i);
 
@@ -147,21 +204,26 @@ bool DiscreteShell::advanceOneStep(int step) {
                     << "\n";
         }
 
-        double mass_i = M.coeff(i, i);
-        Eigen::Vector3d acceleration = 1 / mass_i * force;
-        // actually scaling by the mass works better because it's less unstable but whatever this is "more correct"
-        Velocity->row(i) += dt * acceleration;
-        V->row(i) += dt * Velocity->row(i);
     }
 
-    // Update deformed mesh
+    // Newmark integration loop
+    for (int i = 0; i < V->rows(); ++i) {
+        // Update position
+        V->row(i) += dt * Velocity->row(i) +
+                     dt * dt * ((1.0 - beta) * acceleration.row(i) + beta * acceleration.row(i));
+
+        // Update velocity
+        Velocity->row(i) += dt * ((1.0 - gamma) * acceleration.row(i) + gamma * acceleration.row(i));
+    }
+
+    // Update the deformed mesh
     deformedMesh.V = *V;
 
-    // Close the file after logging
     dataFile.close();
 
-    return false;
+    return false; // Continue simulation
 }
+
 
 
 void DiscreteShell::computeStrechingForces(Eigen::MatrixX3d &forces) {

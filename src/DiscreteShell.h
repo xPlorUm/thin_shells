@@ -65,8 +65,8 @@ private:
     bool linearSolve(Eigen::SparseMatrix<double>& K, const Eigen::VectorXd& residual, Eigen::VectorXd& du);
 
     // Newmark-specific parameters
-    double beta; // Newmark parameter (default: 0.25 for implicit integration)
-    double gamma; // Newmark parameter (default: 0.5 for implicit integration)
+    double beta = 0.25; // Newmark parameter (default: 0.25 for implicit integration)
+    double gamma = 0.5; // Newmark parameter (default: 0.5 for implicit integration)
 
     // Helper function to build system matrix
     void buildSystemMatrix(Eigen::SparseMatrix<double>& K);
