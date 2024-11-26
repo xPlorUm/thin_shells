@@ -56,6 +56,7 @@ private:
     Eigen::SparseMatrix<double> M; // Massmatrix
     Eigen::MatrixX3d forces; // Forces applied point-wise.
     Eigen::MatrixX3d bending_forces; // Bending forces applied point-wise.
+    int k_membrane = 1000; // Membrane stiffness
 
     // Time integration (Newmark scheme)
     void updateDynamicStates();

@@ -9,7 +9,11 @@ Maybe we should change the function names since they're currently the same as th
 #include <iostream>
 #include <igl/edges.h> // Include this header to use igl::edges
 #include <filesystem>
+#include <igl/decimate.h>
+#include <fstream>
+#include <iostream>
 
+int num_steps = 0;
 
 // Constructor
 DiscreteShell::DiscreteShell()
@@ -47,13 +51,30 @@ void DiscreteShell::initializeFromFile(const std::string& filename) {
 
     // Load mesh (vertices and faces)
     igl::read_triangle_mesh(filename, *V, *F);
+
+    Eigen::VectorXi J; // Output mapping from F to simplified faces
+
+    // Specify the target number of faces
+    int target_faces = 100;
+
+    igl::decimate(*V, *F, target_faces, *V, *F, J);
+
     V_rest = Eigen::MatrixXd(*V);
-    undeformedMesh = Mesh(V_rest, *F);
-    deformedMesh = undeformedMesh;
+    deformedMesh = Mesh(V_rest, *F);
+
+    // Set only the y-coordinates to 0 for the undeformed mesh
+    Eigen::MatrixXd V_undef = V_rest; // Copy vertices
+    for (int i = 0; i < V_undef.rows(); ++i) {
+        V_undef(i, 1) = 0.0; // Set the y-coordinate (index 1) to 0
+    }
+
+    undeformedMesh = Mesh(V_undef, *F);
+
 
     // Set massmatrix
     igl::massmatrix(V_rest, *F, igl::MASSMATRIX_TYPE_VORONOI, M);
-
+    // to avoid instability
+    M *= 500;
 
     // Get all edges
     std::cout << "Loaded mesh " << filename << std::endl;
@@ -66,6 +87,8 @@ void DiscreteShell::initializeFromFile(const std::string& filename) {
     std::cout << "E : (" << E->rows() << ", " << E->cols() << ")" << std::endl;
 
     // Compute the rest length of the edges
+    // This assumes that the undeformed mesh is the initial mesh
+    // For paper, might be an okay assumption
     E_length_rest.resize(E->rows());
     for (int i = 0; i < E->rows(); i++) {
         // Get the indices of the two vertices of the edge
@@ -84,8 +107,8 @@ void DiscreteShell::initializeFromFile(const std::string& filename) {
 
 }
 
-// Advance one time step
 bool DiscreteShell::advanceOneStep(int step) {
+
     // Reset forces
     forces = Eigen::MatrixX3d::Zero(V->rows(), 3);
     computeStrechingForces(forces);
@@ -93,38 +116,47 @@ bool DiscreteShell::advanceOneStep(int step) {
     bending_forces = Eigen::MatrixX3d::Zero(V->rows(), 3);
 
     //only make part time bending energy because it is so slow now
-    if (step > 40) {
-        std::cout << "Bending force calculated" << std::endl;
+    //if (step > 40) {
         computeBendingForces(bending_forces);
+        std::cout << "Bending force calculated" << std::endl;
         forces += bending_forces;
-    }
+    //}
 
+    // Open a file to log data (appending mode)
+    std::ofstream dataFile;
+    dataFile.open("vertex_data.csv", std::ios_base::app);
 
-    // Update positions with Newtons law
-    // Iterate over all velocities and update
-    // Set first vertice force as -inf
+    // Update positions with Newton's law
     for (int i = 0; i < Velocity->rows(); i++) {
-        // Gets the force for the vertex I
         Eigen::Vector3d force = forces.row(i);
-        // Gets the velocity for the vertex I
-        double mass_i = 1;
-        if (i == 42) {
-            mass_i = 0;
+        Eigen::Vector3d velocity = Velocity->row(i);
+
+        // If we are at vertex 0, log the velocity and force
+        // Log time, velocity, force, and position for vertex 0
+        if (i == 0) {
+            dataFile << num_steps++ << ","
+                    << velocity.x() << "," << velocity.y() << "," << velocity.z() << ","
+                    << force.x() << "," << force.y() << "," << force.z() << ","
+                    << V->row(0).x() << "," << V->row(0).y() << "," << V->row(0).z() << "\n";
         }
-        // Adds gravity as force
-        force += Eigen::Vector3d(0, -9.81, 0);
-        Eigen::Vector3d acceleration = mass_i * force;
-        // add gravity
+
+        double mass_i = M.coeff(i, i);
+        Eigen::Vector3d acceleration = 1 / mass_i * force;
+        // actually scaling by the mass works better because it's less unstable but whatever this is "more correct"
         Velocity->row(i) += dt * acceleration;
-        // Update the position
         V->row(i) += dt * Velocity->row(i);
     }
 
     // Update deformed mesh
     deformedMesh.V = *V;
 
+    // Close the file after logging
+    dataFile.close();
+
     return false;
 }
+
+
 
 
 void DiscreteShell::computeStrechingForces(Eigen::MatrixX3d &forces) {
@@ -144,7 +176,7 @@ void DiscreteShell::computeStrechingForces(Eigen::MatrixX3d &forces) {
         // Compute the stretching force
         double current_length = (p2 - p1).norm();
         double rest_length = E_length_rest(i);
-        double force_magnitude = 0.5 * 1000 *  (current_length - rest_length);
+        double force_magnitude = k_membrane *  (current_length - rest_length);
         auto direction = (p2 - p1).normalized();
         Eigen::Vector3d fi = force_magnitude * direction;
         forces.row(v1) += fi;
@@ -154,9 +186,10 @@ void DiscreteShell::computeStrechingForces(Eigen::MatrixX3d &forces) {
 
 
 void DiscreteShell::computeBendingForces(Eigen::MatrixX3d& bending_forces) {
+
+    std::cout << "Computing bending forces" << std::endl;
     
     bending_forces.setZero(V_rest.rows(), 3);
-    //Eigen::VectorXd stiffness_vec = Eigen::VectorXd::Zero(V_rest.rows());
 
     for (int i = 0; i < V_rest.rows(); i++) {
         // Add bending forces
@@ -170,28 +203,26 @@ void DiscreteShell::computeBendingForces(Eigen::MatrixX3d& bending_forces) {
         DualVector x = deformedMesh.V.row(i);
         auto grad = gradient(energy, x);
         bending_forces.row(i) = -Eigen::Map<Eigen::Vector3d>(grad.data());
-        //stiffness_vec[i] = var(deformedMesh.stiffness[i]);
     }
-
-    // Scale bending forces by the diagonal stiffness matrix
-    // bending_forces = stiffness_vec.asDiagonal() * bending_forces;
 
 }
 
 var DiscreteShell::BendingEnergy(int i) {
+
+    // std::cout << "Calculating bending energy for vertex " << i << std::endl;
     DualVector angles_u, angles_d;
     // DualVector stiffness_u, stiffness_d;
     DualVector heights, norms;
 
+    // TODO: store the undeformed mesh's dihedral angles and stiffness instead of recalculating them every time
     undeformedMesh.calculateDihedralAngles(i, angles_u);
     deformedMesh.calculateDihedralAngles(i, angles_d);
     deformedMesh.computeAverageHeights(i, heights);
     deformedMesh.computeEdgeNorms(i, norms);
+
     //flexural energy per undirected edge
-    // std::cout << deformedMesh.stiffness.size() << std::endl;
-    // std::cout << (((angles_u - angles_d).array().square() * norms.array()) / heights.array()).size() << std::endl;
-    // DualVector flex = deformedMesh.stiffness.array() * (((angles_u - angles_d).array().square() * norms.array()) / heights.array());
     DualVector flex = (((angles_u - angles_d).array().square() * norms.array()) / heights.array());
+    if (i == 0) std::cout << "Flexural energy for vertex " << i << " : " << flex.sum() << std::endl;
     return flex.sum();
 }
 

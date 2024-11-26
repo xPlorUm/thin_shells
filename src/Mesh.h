@@ -19,8 +19,6 @@ typedef Eigen::Matrix<var, Eigen::Dynamic, Eigen::Dynamic> DualMatrix;
 typedef Eigen::Matrix<var, Eigen::Dynamic, 1> DualVector;
 typedef Eigen::Matrix<var, 1, 3> Dual3DVector;
 
-
-
 // Mesh class representing a 3D mesh structure
 class Mesh {
 public:

@@ -31,6 +31,8 @@ Mesh::Mesh(const Eigen::MatrixXd& V_, const Eigen::MatrixXi& F_)
 
 //Vertex wise computation
 void Mesh::calculateDihedralAngles(int i, DualVector& angles) {
+
+    if(i ==0) std::cout << "Calculating dihedral angles for vertex " << i << std::endl;
     std::vector<int> incEdges = VE[i];
     angles.setZero(incEdges.size());
     //stiffness.setZero(incEdges.size());
@@ -51,13 +53,15 @@ void Mesh::calculateDihedralAngles(int i, DualVector& angles) {
         
         angles(ni) = acos(cos);
 
-        //also determine stiffness
-        if (abs(angles(ni)) > plastic_deformation_threshold) { // Apply a threshold to determine if the edge is a crease
+        // Apply a threshold to determine if the edge is a crease
+        if (abs(angles(ni)) > plastic_deformation_threshold) { 
             stiffness(ni) = 0.5;
-            // TODO: change rest angle
+            // TODO: change the resting angle of the undeformed mesh
         }
         ni++;
     }
+
+    if(i == 0) std::cout << "Dihedral angles for vertex " << i << " : " << angles.sum() << std::endl;
 }
 
 void Mesh::computeFaceNormal(int faceI, Dual3DVector& n) {
