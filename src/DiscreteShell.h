@@ -57,6 +57,8 @@ private:
     Eigen::MatrixX3d forces; // Forces applied point-wise.
     Eigen::MatrixX3d bending_forces; // Bending forces applied point-wise.
 
+    // Helper function to build system matrix
+    void buildSystemMatrix(Eigen::SparseMatrix<double>& K);
     // Time integration (Newmark scheme)
     void updateDynamicStates();
     bool linearSolve(Eigen::SparseMatrix<double>& K, const Eigen::VectorXd& residual, Eigen::VectorXd& du);
@@ -65,13 +67,10 @@ private:
     double beta; // Newmark parameter (default: 0.25 for implicit integration)
     double gamma; // Newmark parameter (default: 0.5 for implicit integration)
 
-    // Helper function to build system matrix
-    void buildSystemMatrix(Eigen::SparseMatrix<double>& K);
 
     void computeStrechingForces(Eigen::MatrixX3d& forces); // Compute stretching forces
     void computeBendingForces(Eigen::MatrixX3d& bending_forces); // Compute bending forces
-    var totalBendingEnergy();
-    var BendingEnergy(int i);
+    double BendingEnergy(int i);
 
 
 };

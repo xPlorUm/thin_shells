@@ -18,6 +18,7 @@
 std::string PATH = "../data/";
 //string file = "paper-plane-subd.off";
 std::string file = "old_assignment/woody-hi.off";
+//std::string file = "old_assignment/twisted.off";
 
 using namespace std;
 using namespace Eigen;
@@ -132,12 +133,11 @@ bool callback_pre_draw(Viewer& viewer) {
     if (animation) {
         int begin_step = (int)(anim_t) % total_steps; // starts again whenever anim_t > num_poses
         int end_step = (int)(floor(anim_t) + 1) % total_steps;
-        //TODO advance time step of discrete shell
+        //advance time step of discrete shell
         ds.advanceOneStep(begin_step);
-        //TODO change/add function in discrete shell class which returns the resulting V:Vertices Matrix
         anim_t += step_size;
     }
-    //add time_step
+    // add time_step
     // set value of Mesh to V
     viewer.data().clear();
     // Draw the discrete shell
