@@ -57,6 +57,8 @@ private:
     Eigen::MatrixX3d forces; // Forces applied point-wise.
     Eigen::MatrixX3d bending_forces; // Bending forces applied point-wise.
     int k_membrane = 1000; // Membrane stiffness
+    double stiffness_damping = 0.5; // Stiffness damping coefficient
+    double mass_damping = 0.5; // Mass damping coefficient
 
     // Time integration (Newmark scheme)
     void updateDynamicStates();
@@ -71,6 +73,7 @@ private:
 
     void computeStrechingForces(Eigen::MatrixX3d& forces); // Compute stretching forces
     void computeBendingForces(Eigen::MatrixX3d& bending_forces); // Compute bending forces
+    void computeDampingForces(Eigen::MatrixX3d& damping_forces); // Compute damping forces
     var totalBendingEnergy();
     var BendingEnergy(int i);
 

@@ -117,10 +117,14 @@ bool DiscreteShell::advanceOneStep(int step) {
 
     //only make part time bending energy because it is so slow now
     //if (step > 40) {
-        computeBendingForces(bending_forces);
-        std::cout << "Bending force calculated" << std::endl;
-        forces += bending_forces;
+    computeBendingForces(bending_forces);
+    // std::cout << "Bending force calculated" << std::endl;
+    forces += bending_forces;
     //}
+
+    Eigen::MatrixX3d damping_forces = Eigen::MatrixX3d::Zero(V->rows(), 3);
+    computeDampingForces(damping_forces);
+    forces += damping_forces;
 
     // Open a file to log data (appending mode)
     std::ofstream dataFile;
@@ -135,9 +139,12 @@ bool DiscreteShell::advanceOneStep(int step) {
         // Log time, velocity, force, and position for vertex 0
         if (i == 0) {
             dataFile << num_steps++ << ","
+                    << V->row(0).x() << "," << V->row(0).y() << "," << V->row(0).z() << ","
                     << velocity.x() << "," << velocity.y() << "," << velocity.z() << ","
                     << force.x() << "," << force.y() << "," << force.z() << ","
-                    << V->row(0).x() << "," << V->row(0).y() << "," << V->row(0).z() << "\n";
+                    << bending_forces.row(0).x() << "," << bending_forces.row(0).y() << "," << bending_forces.row(0).z() << ","
+                    << damping_forces.row(0).x() << "," << damping_forces.row(0).y() << "," << damping_forces.row(0).z() << ","
+                    << "\n";
         }
 
         double mass_i = M.coeff(i, i);
@@ -155,8 +162,6 @@ bool DiscreteShell::advanceOneStep(int step) {
 
     return false;
 }
-
-
 
 
 void DiscreteShell::computeStrechingForces(Eigen::MatrixX3d &forces) {
@@ -187,7 +192,7 @@ void DiscreteShell::computeStrechingForces(Eigen::MatrixX3d &forces) {
 
 void DiscreteShell::computeBendingForces(Eigen::MatrixX3d& bending_forces) {
 
-    std::cout << "Computing bending forces" << std::endl;
+    // std::cout << "Computing bending forces" << std::endl;
     
     bending_forces.setZero(V_rest.rows(), 3);
 
@@ -226,6 +231,40 @@ var DiscreteShell::BendingEnergy(int i) {
     return flex.sum();
 }
 
+void DiscreteShell::computeDampingForces(Eigen::MatrixX3d &damping_forces) {
+    // Rayleigh type per-edge damping
+
+    // Stiffness damping
+    damping_forces.setZero();
+    for (int i = 0; i < E->rows(); i++) {
+        // Get the indices of the two vertices of the edge
+        int v1 = E->operator()(i, 0);
+        int v2 = E->operator()(i, 1);
+        
+        // Normalized direction of the edge
+        Eigen::Vector3d edge = V->row(v2) - V->row(v1);
+        Eigen::Vector3d edge_dir = edge.normalized();
+
+        // Get the relaitve velocity of the two vertices
+        Eigen::Vector3d vel1 = Velocity->row(v1);
+        Eigen::Vector3d vel2 = Velocity->row(v2);
+
+        double edge_stifness = deformedMesh.stiffness(i);
+
+        // Compute the damping force
+        Eigen::VectorXd damping_force = stiffness_damping * edge_stifness * (vel2 - vel1).dot(edge_dir) * edge_dir;
+
+        // Add the damping force to the forces vector
+        damping_forces.row(v1) += damping_force;
+        damping_forces.row(v2) -= damping_force;
+    }
+
+    // Mass damping
+    damping_forces += -1 * mass_damping * M * (*Velocity);
+
+    // Damping force for vertex 0
+    //td::cout << "Damping force for vertex 0 : " << damping_forces.row(0) << std::endl;
+}
 
 //void DiscreteShell::computeBendingForces(Eigen::MatrixX3d& bending_forces) {
 //    bending_forces.setZero();

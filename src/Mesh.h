@@ -28,6 +28,7 @@ public:
     Eigen::MatrixXd V_d;
     Eigen::MatrixXd FN_d;
     Eigen::VectorXd stiffness; // Stiffness of each edge (#uE, 1)
+    Eigen::VectorXd dihedralAngles;
 
     var Epsilon = 1e-4;
 
@@ -42,9 +43,6 @@ public:
     std::vector<std::vector<int>> VF; // List of faces incident to each vertex
     std::vector<std::vector<int>> VFi; // Indices of corners of faces incident to each vertex
     std::vector<std::vector<int>> VE; // VE[i] will contain the edges incident to vertex i
-
-
-    Eigen::VectorXd dihedralAngles;
 
     Mesh();
 
