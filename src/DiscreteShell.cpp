@@ -101,6 +101,7 @@ bool DiscreteShell::advanceOneStep(int step) {
         forces += bending_forces;
     }
 
+
     //add gravity
     forces.col(1) += Eigen::VectorXd::Constant(forces.rows(), - 9.81);
 
@@ -192,7 +193,7 @@ void DiscreteShell::computeBendingForces(Eigen::MatrixX3d& bending_forces) {
         // Add bending forces using FD method
         for (int j = 0; j < V_rest.cols(); j++) {
             double bend_energy = BendingEnergy(i);
-            *V(i, j) += Eigen::RowVector3d::Constant(Epsilon);
+            //*V(i, j) += Eigen::RowVector3d::Constant(Epsilon);
             double plus_bend_energy = BendingEnergy(i);
 
             V->row(i) -= Eigen::RowVector3d::Constant(Epsilon);

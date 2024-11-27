@@ -88,6 +88,8 @@ int main(int argc, char* argv[]) {
         ds.initializeFromFile(argv[1]);
     }
 
+
+
     // Initialize Viewer
     viewer.data().clear();
     auto V = ds.getPositions();
