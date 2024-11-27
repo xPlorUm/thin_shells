@@ -13,6 +13,9 @@ Maybe we should change the function names since they're currently the same as th
 #include <fstream>
 #include <iostream>
 
+// Define a macro to enable/disable debug information
+// #define DEBUG_VERTEX 0
+
 int num_steps = 0;
 
 // Constructor
@@ -179,8 +182,6 @@ bool DiscreteShell::advanceOneStep(int step) {
     forces += damping_forces;
 
     // Open a file to log data (appending mode)
-    std::ofstream dataFile;
-    dataFile.open("vertex_data.csv", std::ios_base::app);
 
     // Compute acceleration
     Eigen::MatrixX3d acceleration = Eigen::MatrixX3d::Zero(V->rows(), 3);
@@ -192,10 +193,11 @@ bool DiscreteShell::advanceOneStep(int step) {
         Eigen::Vector3d force = forces.row(i);
         Eigen::Vector3d velocity = Velocity->row(i);
 
+#ifdef DEBUG_VERTEX
         // If we are at vertex 0, log the velocity and force
         // Log time, velocity, force, and position for vertex 0
         if (i == 0) {
-            dataFile << num_steps++ << ","
+            fileDebugger.getStream() << num_steps++ << ","
                     << V->row(0).x() << "," << V->row(0).y() << "," << V->row(0).z() << ","
                     << velocity.x() << "," << velocity.y() << "," << velocity.z() << ","
                     << force.x() << "," << force.y() << "," << force.z() << ","
@@ -203,6 +205,7 @@ bool DiscreteShell::advanceOneStep(int step) {
                     << damping_forces.row(0).x() << "," << damping_forces.row(0).y() << "," << damping_forces.row(0).z() << ","
                     << "\n";
         }
+#endif
 
     }
 
@@ -218,8 +221,6 @@ bool DiscreteShell::advanceOneStep(int step) {
 
     // Update the deformed mesh
     deformedMesh.V = *V;
-
-    dataFile.close();
 
     return false; // Continue simulation
 }

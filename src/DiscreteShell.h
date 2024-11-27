@@ -6,7 +6,31 @@
 #include "Mesh.h"
 #include <iostream>
 #include <igl/massmatrix.h>
+#include <fstream>
 
+
+class FileDebugger {
+private :
+    std::ofstream dataFile;
+public:
+    FileDebugger(const std::string& filename) {
+        dataFile.open(filename);
+    }
+
+    // Get the stream so one can write on it
+    std::ofstream& getStream() {
+        return dataFile;
+    }
+
+    void close() {
+        dataFile.close();
+    }
+
+
+    ~FileDebugger() {
+        dataFile.close();
+    }
+};
 
 class DiscreteShell {
 public:
@@ -77,7 +101,9 @@ private:
     var totalBendingEnergy();
     var BendingEnergy(int i);
 
+    FileDebugger fileDebugger = FileDebugger("vertex_data.csv");
 
 };
+
 
 #endif // DISCRETE_SHELL_H
