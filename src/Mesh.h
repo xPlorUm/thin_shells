@@ -19,6 +19,9 @@ typedef Eigen::Matrix<var, Eigen::Dynamic, Eigen::Dynamic> DualMatrix;
 typedef Eigen::Matrix<var, Eigen::Dynamic, 1> DualVector;
 typedef Eigen::Matrix<var, 1, 3> Dual3DVector;
 
+constexpr double PI = 3.14159265358979323846;
+constexpr double Epsilon = 1e-4;
+
 // Mesh class representing a 3D mesh structure
 class Mesh {
 public:
@@ -30,7 +33,6 @@ public:
     Eigen::VectorXd stiffness; // Stiffness of each edge (#uE, 1)
     Eigen::VectorXd dihedralAngles;
 
-    var Epsilon = 1e-4;
 
     //static
     Eigen::MatrixXi F;  // Matrix storing indices of vertices forming each face (#F, 3)
@@ -71,7 +73,7 @@ private:
     // Computes the height of one face given the indec of the corner {0, 1, 2}
     var computeFaceHeight(const Eigen::RowVector3i& face, const int corner);
     void computeFaceNormal(int faceI, Dual3DVector& n);
-    static constexpr double plastic_deformation_threshold = M_PI / 4.0;
+    static constexpr double plastic_deformation_threshold = PI / 4.0;
 
 };
 
