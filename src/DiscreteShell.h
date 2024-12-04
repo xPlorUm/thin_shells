@@ -70,7 +70,7 @@ private:
 
     void computeStrechingForces(Eigen::MatrixX3d& forces); // Compute stretching forces
     void computeBendingForces(Eigen::MatrixX3d& bending_forces); // Compute bending forces
-    double BendingEnergy(int i);
+    double totalBendingEnergy();
 
 
 };

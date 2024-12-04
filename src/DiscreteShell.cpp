@@ -11,6 +11,12 @@ Maybe we should change the function names since they're currently the same as th
 #include <filesystem>
 
 
+
+#include <TinyAD/ScalarFunction.hh>
+#include <TinyAD/Utils/NewtonDirection.hh>
+#include <TinyAD/Utils/NewtonDecrement.hh>
+#include <TinyAD/Utils/LineSearch.hh>
+
 // Constructor
 DiscreteShell::DiscreteShell()
     : dt(0.03), simulation_duration(10.0),
@@ -175,31 +181,24 @@ void DiscreteShell::computeBendingForces(Eigen::MatrixX3d& bending_forces) {
     bending_forces.setZero(V_rest.rows(), 3);
     //Eigen::VectorXd stiffness_vec = Eigen::VectorXd::Zero(V_rest.rows());
 
+    //2 variables per vertex.Objective per triangle, using 3 vertices each :
+
+
     for (int i = 0; i < V_rest.rows(); i++) {
 
 
-        // Add bending forces using AD
-        //auto energy_f = [this](int i) -> var {
-        //    return BendingEnergy(i);
-        //    };
-        //
-        //// Derivative and forward pass of Bending energy function
-        //// Shape of derivative is (#V, 3)
-        //var energy = energy_f(i); // forward
-        //DualVector x = deformedMesh.V.row(i);
-        //auto grad = gradient(energy, x);
-        //bending_forces.row(i) = -Eigen::Map<Eigen::Vector3d>(grad.data());
+         //Add bending forces using AD
+        auto energy_f = [this](int i) -> var {
+            return BendingEnergy(i);
+            };
+        
+        // Derivative and forward pass of Bending energy function
+        // Shape of derivative is (#V, 3)
+        var energy = energy_f(i); // forward
+        DualVector x = deformedMesh.V.row(i);
+        auto grad = gradient(energy, x);
+        bending_forces.row(i) = -Eigen::Map<Eigen::Vector3d>(grad.data());
 
-        // Add bending forces using FD method
-        for (int j = 0; j < V_rest.cols(); j++) {
-            double bend_energy = BendingEnergy(i);
-            //*V(i, j) += Eigen::RowVector3d::Constant(Epsilon);
-            double plus_bend_energy = BendingEnergy(i);
-
-            V->row(i) -= Eigen::RowVector3d::Constant(Epsilon);
-            double minus_bend_energy = BendingEnergy(i);
-
-        }
 
         //stiffness_vec[i] = var(deformedMesh.stiffness[i]);
     }
@@ -210,91 +209,54 @@ void DiscreteShell::computeBendingForces(Eigen::MatrixX3d& bending_forces) {
 }
 
 
+void DiscreteShell::computeBendingForces(Eigen::MatrixX3d& bending_forces) {
+    bending_forces.setZero();
 
-double DiscreteShell::BendingEnergy(int i) {
-    Eigen::VectorXd angles_u;
-    Eigen::VectorXd angles_d;
-    Eigen::VectorXd heights, norms;
+    // Add bending forces
+    auto energy_f = [this]() -> var {
+        return totalBendingEnergy();
+        };
 
-    undeformedMesh.getDihedralAngles(i, angles_u); // don't need calculation for that
+    // Derivative and forward pass of Bending energy function
+    // Shape of derivative is (#V, 3)
+    var energy = energy_f(); // forward
+    DualVector x = Eigen::Map<DualVector>(deformedMesh.V.data(), deformedMesh.V.size(), 1);
+    bending_forces = -Eigen::Map<Eigen::MatrixXd>(
+        gradient(energy, x).data(), deformedMesh.V.rows(), deformedMesh.V.cols()
+    );
+    std::cout << x << std::endl;
+    std::cout << "x = " << x << std::endl;
+    std::cout << "Jacobian of energy with respect to x = " << bending_forces << std::endl;
 
-    deformedMesh.calculateDihedralAngles(i, angles_d);
-    deformedMesh.computeAverageHeights(i, heights);
-    deformedMesh.computeEdgeNorms(i, norms);
-
-
-    //flexural energy per undirected edge incident to vertex i
-    Eigen::VectorXd flex = (((angles_u - angles_d).array().square() * norms.array()) / heights.array());
-    return flex.sum();
 }
 
-// For AD
-//var DiscreteShell::BendingEnergy(int i) {
-//    Eigen::VectorXd angles_u;
-//    DualVector angles_d;
-//    DualVector heights, norms;
-//
-//    undeformedMesh.getDihedralAngles(i, angles_u); // don't need calculation for that
-//
-//    deformedMesh.calculateDihedralAngles(i, angles_d);
-//    deformedMesh.computeAverageHeights(i, heights);
-//    deformedMesh.computeEdgeNorms(i, norms);
-//
-//
-//    //flexural energy per undirected edge incident to vertex i
-//    DualVector flex = (((angles_u - angles_d).array().square() * norms.array()) / heights.array());
-//    return flex.sum();
-//}
+double DiscreteShell::totalBendingEnergy() {
+    int nE = undeformedMesh.uE.rows();
+    assert(undeformedMesh.uE.rows() == deformedMesh.uE.rows());
+
+    Eigen::VectorXd angles_u(nE), angles_d(nE);
+    Eigen::VectorXd stiffness_u(nE), stiffness_d(nE);
+    Eigen::VectorXd heights(nE), norms(nE);
 
 
-//void DiscreteShell::computeBendingForces(Eigen::MatrixX3d& bending_forces) {
-//    bending_forces.setZero();
-//
-//    // Add bending forces
-//    auto energy_f = [this]() -> var {
-//        return totalBendingEnergy();
-//        };
-//
-//    // Derivative and forward pass of Bending energy function
-//    // Shape of derivative is (#V, 3)
-//    var energy = energy_f(); // forward
-//    DualVector x = Eigen::Map<DualVector>(deformedMesh.V.data(), deformedMesh.V.size(), 1);
-//    bending_forces = -Eigen::Map<Eigen::MatrixXd>(
-//        gradient(energy, x).data(), deformedMesh.V.rows(), deformedMesh.V.cols()
-//    );
-//    std::cout << x << std::endl;
-//    std::cout << "x = " << x << std::endl;
-//    std::cout << "Jacobian of energy with respect to x = " << bending_forces << std::endl;
-//
-//}
-//
-//double DiscreteShell::totalBendingEnergy() {
-//    int nE = undeformedMesh.uE.rows();
-//    assert(undeformedMesh.uE.rows() == deformedMesh.uE.rows());
-//
-//    Eigen::VectorXd angles_u(nE), angles_d(nE);
-//    Eigen::VectorXd stiffness_u(nE), stiffness_d(nE);
-//    Eigen::VectorXd heights(nE), norms(nE);
-//
-//
-//    // Calculate the dihedral angles and the stiffness of the mesh
-//    undeformedMesh.calculateDihedralAngle(angles_u, stiffness_u);
-//    //std::cout << angles_u.sum() << std::endl;
-//
-//    deformedMesh.calculateDihedralAngle(angles_d, stiffness_d);
-//    deformedMesh.computeAverageHeights(heights);
-//    deformedMesh.computeEdgeNorms(norms);
-//
-//
-//    Eigen::VectorXd flex(nE); //flexural energy per undirected edge
-//    auto mask = (heights.array() != 0).cast<var>();
-//    flex = mask * (((angles_u - angles_d).array().square() * norms.array()) / heights.array());
-//
-//    //std::cout << flex.sum() <<  std::endl;
-//    //TODO multiply flex with Stiffness Matrix
-//
-//    return flex.sum();
-//}
+    // Calculate the dihedral angles and the stiffness of the mesh
+    angles_u = undeformedMesh.preComputedDihedralAngles;
+    //std::cout << angles_u.sum() << std::endl;
+
+    deformedMesh.calculateAllDihedralAngles(angles_d);
+    deformedMesh.computeAverageHeights(heights);
+    deformedMesh.computeEdgeNorms(norms);
+
+
+    Eigen::VectorXd flex(nE); //flexural energy per undirected edge
+    auto mask = (heights.array() != 0).cast<var>();
+    flex = mask * (((angles_u - angles_d).array().square() * norms.array()) / heights.array());
+
+    //std::cout << flex.sum() <<  std::endl;
+    //TODO multiply flex with Stiffness Matrix
+
+    return flex.sum();
+}
 
 
 const Eigen::MatrixXd* DiscreteShell::getPositions() {
@@ -304,5 +266,25 @@ const Eigen::MatrixXd* DiscreteShell::getPositions() {
 const Eigen::MatrixXi* DiscreteShell::getFaces() {
     return F;
 }
+
+
+
+
+//double DiscreteShell::BendingEnergy(int i) {
+//    Eigen::VectorXd angles_u;
+//    Eigen::VectorXd angles_d;
+//    Eigen::VectorXd heights, norms;
+//
+//    undeformedMesh.getDihedralAngles(i, angles_u); // don't need calculation for that
+//
+//    deformedMesh.calculateDihedralAngles(i, angles_d);
+//    deformedMesh.computeAverageHeights(i, heights);
+//    deformedMesh.computeEdgeNorms(i, norms);
+//
+//
+//    //flexural energy per undirected edge incident to vertex i
+//    Eigen::VectorXd flex = (((angles_u - angles_d).array().square() * norms.array()) / heights.array());
+//    return flex.sum();
+//}
 
 

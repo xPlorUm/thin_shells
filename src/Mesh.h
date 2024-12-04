@@ -9,6 +9,8 @@
 #include <utility>
 
 
+
+
 // For AD
 #include <autodiff/forward/dual/dual.hpp>
 #include <autodiff/forward/dual/eigen.hpp>
@@ -26,11 +28,13 @@ constexpr double Epsilon = 1e-4;
 // Mesh class representing a 3D mesh structure
 class Mesh {
 public:
+
     //dynamic
-    //DualMatrix V;  // Matrix storing vertex positions (#V, 3)
     //DualMatrix FN; // Normals of each face (#F, 3)
     Eigen::MatrixXd V;  // Matrix storing vertex positions (#V, 3)
     Eigen::MatrixXd FN; // Normals of each face (#F, 3)
+
+
 
     Eigen::MatrixXd V_d;
     Eigen::MatrixXd FN_d;
@@ -49,42 +53,28 @@ public:
     std::vector<std::vector<int>> VFi; // Indices of corners of faces incident to each vertex
     std::vector<std::vector<int>> VE; // VE[i] will contain the edges incident to vertex i
 
-
-    Eigen::VectorXd dihedralAngles;
-
     Mesh();
 
     // Constructor to initialize the mesh with vertices, faces
     Mesh(const Eigen::MatrixXd& V_, const Eigen::MatrixXi& F_);
 
-    void calculateDihedralAngles(int i, Eigen::VectorXd& angles);
-    void computeAverageHeights(int i, Eigen::VectorXd& heights);
-    void computeEdgeNorms(int i, Eigen::VectorXd& norms);
-    //void calculateDihedralAngles(int i, DualVector& angles);
-    //void computeAverageHeights(int i, DualVector& heights);
-    //void computeEdgeNorms(int i, DualVector& norms);
-
-    // Computes and saves the dihedral angles of the current mesh (#uE, 1) and also the Stiffness Matrix (#uE, 1)
-    //void calculateAllDihedralAngles(DualVector& angles, DualVector& stiffness);
-    //void getDihedralAngles(int i, DualVector& angles, DualVector& stiffness);
-    void calculateAllDihedralAngles(Eigen::VectorXd& angles);
+    
+    Eigen::VectorXd preComputedDihedralAngles; // Precomputed in Mesh() dihedralAngles of size (#uE, 1)
     // Returns all precomputed dihedral angles of the ith vertex to all incident edges
     void getDihedralAngles(int i, Eigen::VectorXd& angles);
 
+    // Computes and saves the dihedral angles of the current mesh (#uE, 1) and also the Stiffness Matrix (#uE, 1)
+    void calculateAllDihedralAngles(Eigen::VectorXd& angles);
 
-    //void calculateDihedralAngles(DualVector& angles);
-    //// Computes and saves the third of the average heights of the unique mesh edges into a vector(#uE, 1)
-    //void computeAverageHeights(DualVector& heights);
+    // Computes and saves the third of the average heights of the unique mesh edges into a vector(#uE, 1)
+    void computeAverageHeights(Eigen::VectorXd& heights);
     //// Saves the norms of the undirected Edges of the mesh and saves them in a vector (#uE, 1)
-    //void computeEdgeNorms(DualVector& norms);
+    void computeEdgeNorms(Eigen::VectorXd& norms);
 
 private:
-    // Computes the height of one face given the indec of the corner {0, 1, 2}
-    double computeFaceHeight(const Eigen::RowVector3i& face, const int corner);
-    void computeFaceNormal(int faceI, Eigen::Vector3d& n);
+    // Computes the height of one face given the index of the corner {0, 1, 2}
     static constexpr double plastic_deformation_threshold = PI / 4.0;
-    //var computeFaceHeight(const Eigen::RowVector3i& face, const int corner);
-    //void computeFaceNormal(int faceI, Eigen::Vector3d& n);
+    double computeFaceHeight(const Eigen::RowVector3i& face, const int corner);
 
 };
 
