@@ -133,12 +133,12 @@ bool DiscreteShell::advanceOneStep(int step) {
         // Gets the velocity for the vertex I
         double mass_i = 1.0 / M.coeff(i, i);
         //std::cout << M.coeff(i, i) << std::endl;
-        mass_i = 1.0f;
-        //if (i == 42) {
-        //    mass_i = 0;
-        //}
-        // Adds gravity as force
-        //force += Eigen::Vector3d(0, -9.81, 0);
+        //mass_i = 1.0f;
+        if (i == 42) {
+            mass_i = 0;
+        }
+         //Adds gravity as force
+        force += Eigen::Vector3d(0, -9.81, 0);
         Eigen::Vector3d acceleration = mass_i * force;
         // add gravity
         Velocity->row(i) += dt * acceleration;
@@ -195,18 +195,23 @@ void DiscreteShell::computeBendingForces(Eigen::MatrixX3d& bending_forces) {
         Eigen::RowVector3<T> v1 = element.variables(deformedMesh.uE(edge_idx, 1));
 
         // Compute dihedral angle, height, and norm
-        double angle_u = undeformedMesh.precomputedDihedralAngles(edge_idx);
+        double angle_u = undeformedMesh.dihedralAngles(edge_idx);
 
         T angle_d = deformedMesh.computeDihedralAngle(v0, v1, edge_idx);
+
+        deformedMesh.dihedralAngles(edge_idx) = TinyAD::to_passive(angle_d);
+        // TODO: change the resting angle of the undeformed mesh
+
         T height = deformedMesh.computeHeight(v0, v1, edge_idx);
         T norm = (v1 - v0).norm();
+        double stiffness = deformedMesh.stiffness(edge_idx);
 
         // Edge Case
         if (height <= Epsilon || norm <= Epsilon) 
             return (T)0.0;
 
         // Compute bending energy for this edge
-        T bending_energy = ((angle_u - angle_d) * (angle_u - angle_d) * norm) / height;
+        T bending_energy = ((angle_u - angle_d) * (angle_u - angle_d) * norm * stiffness) / height;
 
         return bending_energy;
     });
@@ -223,40 +228,7 @@ void DiscreteShell::computeBendingForces(Eigen::MatrixX3d& bending_forces) {
     }
     
 
-    // Scale bending forces by the diagonal stiffness matrix
-    // bending_forces = stiffness_vec.asDiagonal() * bending_forces;
 }
-
-
-
-//double DiscreteShell::totalBendingEnergy() {
-//    int nE = undeformedMesh.uE.rows();
-//    assert(undeformedMesh.uE.rows() == deformedMesh.uE.rows());
-//
-//    Eigen::VectorXd angles_u(nE), angles_d(nE);
-//    Eigen::VectorXd stiffness_u(nE), stiffness_d(nE);
-//    Eigen::VectorXd heights(nE), norms(nE);
-//
-//
-//    // Calculate the dihedral angles and the stiffness of the mesh
-//    angles_u = undeformedMesh.preComputedDihedralAngles;
-//    //std::cout << angles_u.sum() << std::endl;
-//
-//    deformedMesh.calculateAllDihedralAngles(angles_d);
-//    deformedMesh.computeAverageHeights(heights);
-//    deformedMesh.computeEdgeNorms(norms);
-//
-//
-//    Eigen::VectorXd flex(nE); //flexural energy per undirected edge
-//    auto mask = (heights.array() != 0).cast<var>();
-//    flex = mask * (((angles_u - angles_d).array().square() * norms.array()) / heights.array());
-//
-//    //std::cout << flex.sum() <<  std::endl;
-//    //TODO multiply flex with Stiffness Matrix
-//
-//    return flex.sum();
-//}
-
 
 const Eigen::MatrixXd* DiscreteShell::getPositions() {
     return V;
@@ -266,24 +238,5 @@ const Eigen::MatrixXi* DiscreteShell::getFaces() {
     return F;
 }
 
-
-
-
-//double DiscreteShell::BendingEnergy(int i) {
-//    Eigen::VectorXd angles_u;
-//    Eigen::VectorXd angles_d;
-//    Eigen::VectorXd heights, norms;
-//
-//    undeformedMesh.getDihedralAngles(i, angles_u); // don't need calculation for that
-//
-//    deformedMesh.calculateDihedralAngles(i, angles_d);
-//    deformedMesh.computeAverageHeights(i, heights);
-//    deformedMesh.computeEdgeNorms(i, norms);
-//
-//
-//    //flexural energy per undirected edge incident to vertex i
-//    Eigen::VectorXd flex = (((angles_u - angles_d).array().square() * norms.array()) / heights.array());
-//    return flex.sum();
-//}
 
 

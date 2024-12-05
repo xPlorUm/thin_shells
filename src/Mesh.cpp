@@ -14,7 +14,7 @@ Mesh::Mesh() {
 Mesh::Mesh(const Eigen::MatrixXd& V_, const Eigen::MatrixXi& F_)
     : V(V_), F(F_) {
     igl::edge_flaps(F, uE, EMAP, EF, EI); // Compute the edges and the edge-face incidence
-    calculateAllDihedralAngles(precomputedDihedralAngles);
+    calculateAllDihedralAngles(dihedralAngles);
 
 
     // set stiffness to 1 for all edges
@@ -45,6 +45,14 @@ void Mesh::calculateAllDihedralAngles(Eigen::VectorXd& angles) {
 
     }
 }
+
+
+
+
+
+
+
+
 
 
 
