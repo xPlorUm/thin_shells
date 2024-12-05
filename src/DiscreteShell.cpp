@@ -134,11 +134,11 @@ bool DiscreteShell::advanceOneStep(int step) {
         double mass_i = 1.0 / M.coeff(i, i);
         //std::cout << M.coeff(i, i) << std::endl;
         mass_i = 1.0f;
-        if (i == 42) {
-            mass_i = 0;
-        }
+        //if (i == 42) {
+        //    mass_i = 0;
+        //}
         // Adds gravity as force
-        force += Eigen::Vector3d(0, -9.81, 0);
+        //force += Eigen::Vector3d(0, -9.81, 0);
         Eigen::Vector3d acceleration = mass_i * force;
         // add gravity
         Velocity->row(i) += dt * acceleration;
