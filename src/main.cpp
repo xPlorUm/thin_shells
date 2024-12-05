@@ -11,6 +11,7 @@
 #include <memory>
 #include <utility>
 
+#include <igl/per_face_normals.h>
 
 //activate this for alternate UI (easier to debug but no interactive updates, turn this OFF for your report)
 //#define UPDATE_ONLY_ON_UP
@@ -19,6 +20,7 @@
 std::string PATH = "../data/";
 //string file = "paper-plane-subd.off";
 std::string file = "old_assignment/woody-hi.off";
+//std::string file = "twisted.off";
 
 using namespace std;
 using namespace Eigen;
@@ -98,6 +100,7 @@ int main(int argc, char* argv[]) {
     viewer.data().set_mesh(*V, *F);
     viewer.core().align_camera_center(*V);
 
+
     viewer.core().is_animating = true; // Enables continuous rendering
     igl::opengl::glfw::imgui::ImGuiPlugin plugin;
     viewer.plugins.push_back(&plugin);
@@ -147,6 +150,20 @@ bool callback_pre_draw(Viewer& viewer) {
     auto V = ds.getPositions();
     auto F = ds.getFaces();
     viewer.data().set_mesh(*V, *F);
+    //Eigen::MatrixXd FN = ds.getNormals();
+    ////Compute centroids of each face
+    //Eigen::MatrixXd centroids(F->rows(), 3);
+    //for (int i = 0; i < F->rows(); ++i) {
+    //    centroids.row(i) = ((*V).row((*F)(i, 0)) + (*V).row((*F)(i, 1)) + (*V).row((*F)(i, 2))) / 3.0;
+    //}
+    //Add edges for visualizing normals
+    //viewer.data().add_edges(
+    //    centroids,                              // Start points: face centroids
+    //    centroids + (FN * 0.5),                // End points: normals scaled by 0.05
+    //    Eigen::RowVector3d(1, 0, 0)             // Color: Red
+    //);
+
+
     return false;
 }
 

@@ -35,6 +35,7 @@ public:
 // TODO : this should be a pointer
 const Eigen::MatrixXd* getPositions();
 const Eigen::MatrixXi* getFaces();
+const Eigen::MatrixXd getNormals();
 
 private:
 

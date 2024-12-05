@@ -10,6 +10,8 @@
 
 
 
+#include <TinyAD/ScalarFunction.hh>
+
 
 // For AD
 constexpr double PI = 3.14159265358979323846;
@@ -100,6 +102,14 @@ public:
             computeNormal(v1, v0, corner0, n0);
         }
 
+        //TODO compare n0 with normal at FN.row(face0) and change direction if 
+        // angle between n0 and precomputed normal is larger than 90 Degree
+        //Eigen::RowVector3d precomputed_n0 = FN.row(face0);
+        //if (n0.dot(precomputed_n0) < 0) {
+        //    n0 = -n0; // Flip n0 to match the hemisphere of precomputed_n0
+        //}
+
+
         // Face 1
         int c0_f1idx = EI(e_idx, 1);
         int v0_f1idx = (c0_f1idx + 1) % 3;
@@ -110,11 +120,24 @@ public:
             computeNormal(v1, v0, corner1, n1);
         }
 
+        // **Compare n1 with FN.row(face1)**
+        //Eigen::RowVector3d precomputed_n1 = FN.row(face1);
+        //if (n1.dot(precomputed_n1) < 0) {
+        //    n1 = -n1; // Flip n1 to match the hemisphere of precomputed_n1
+        //}
+
+        //FN.row(face1) = n1;
 
         Scalar cos = n0.dot(n1);
 
+
+        // NOW only allows angles up to 90 Degree
+        //if (cos < 0) cos = -cos;
+
+
         if (cos >= 1.0f) cos = 1.0f - Epsilon;
         if (cos <= -1.0f) cos = -1.0f + Epsilon;
+
 
         Scalar angle = acos(cos);
         

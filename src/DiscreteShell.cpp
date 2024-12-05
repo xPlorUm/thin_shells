@@ -9,6 +9,7 @@ Maybe we should change the function names since they're currently the same as th
 #include <iostream>
 #include <igl/edges.h> // Include this header to use igl::edges
 #include <filesystem>
+#include <igl/decimate.h>
 
 
 
@@ -55,6 +56,14 @@ void DiscreteShell::initializeFromFile(const std::string& filename) {
 
     // Load mesh (vertices and faces)
     igl::read_triangle_mesh(filename, *V, *F);
+
+    // Specify the target number of faces
+    int target_faces = 100;
+
+    //Eigen::VectorXi J; // Output mapping from F to simplified faces
+
+    //igl::decimate(*V, *F, target_faces, *V, *F, J);
+
     V_rest = Eigen::MatrixXd(*V);
     undeformedMesh = Mesh(V_rest, *F);
 
@@ -102,49 +111,22 @@ bool DiscreteShell::advanceOneStep(int step) {
     bending_forces = Eigen::MatrixX3d::Zero(V->rows(), 3);
 
     //only make part time bending energy because it is so slow now
-    //if (step > 40) {
-    if (true) {
-        std::cout << "Bending force calculated" << std::endl;
-        computeBendingForces(bending_forces);
-        forces += bending_forces;
-    }
-
+    computeBendingForces(bending_forces);
+    forces += bending_forces;
 
     //add gravity
     forces.col(1) += Eigen::VectorXd::Constant(forces.rows(), - 9.81);
 
-    //Eigen::VectorXd mass = M.diagonal();
-    //mass = mass.cwiseInverse();
+    Eigen::VectorXd mass = M.diagonal();
+    mass = mass.cwiseInverse();
     //Eigen::VectorXd mass = Eigen::VectorXd::Constant(forces.rows(), 1.0);
-    //mass(42) = 0.0f; //handle
+    mass(42) = 0.0f; //handle
 
-    //Eigen::MatrixXd acceleration(forces.rows(), forces.cols());
-    //acceleration = forces.array().colwise() * mass.array();
-    //*Velocity = Velocity->array() + dt * acceleration.array();
-    //*V = V->array() + dt * Velocity->array();
+    Eigen::MatrixXd acceleration(forces.rows(), forces.cols());
+    acceleration = forces.array().colwise() * mass.array();
+    *Velocity = Velocity->array() + dt * acceleration.array();
+    *V = V->array() + dt * Velocity->array();
 
-
-    // Update positions with Newtons law
-    // Iterate over all velocities and update
-    // Set first vertice force as -inf
-    for (int i = 0; i < Velocity->rows(); i++) {
-        // Gets the force for the vertex I
-        Eigen::Vector3d force = forces.row(i);
-        // Gets the velocity for the vertex I
-        double mass_i = 1.0 / M.coeff(i, i);
-        //std::cout << M.coeff(i, i) << std::endl;
-        //mass_i = 1.0f;
-        if (i == 42) {
-            mass_i = 0;
-        }
-         //Adds gravity as force
-        force += Eigen::Vector3d(0, -9.81, 0);
-        Eigen::Vector3d acceleration = mass_i * force;
-        // add gravity
-        Velocity->row(i) += dt * acceleration;
-        // Update the position
-        V->row(i) += dt * Velocity->row(i);
-    }
 
     // Update deformed mesh
     deformedMesh.V = *V;
@@ -251,8 +233,6 @@ void DiscreteShell::computeBendingForces(Eigen::MatrixX3d& bending_forces) {
         Eigen::RowVector3<T> v0 = element.variables(deformedMesh.uE(edge_idx, 0));
         Eigen::RowVector3<T> v1 = element.variables(deformedMesh.uE(edge_idx, 1));
 
-        if (edge_idx == 10)
-            std::cout << "Test" << std::endl;
 
         // Compute dihedral angle, height, and norm
         double angle_u = undeformedMesh.dihedralAngles(edge_idx);
@@ -299,6 +279,10 @@ const Eigen::MatrixXd* DiscreteShell::getPositions() {
 
 const Eigen::MatrixXi* DiscreteShell::getFaces() {
     return F;
+}
+
+const Eigen::MatrixXd DiscreteShell::getNormals() {
+    return deformedMesh.FN;
 }
 
 

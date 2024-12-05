@@ -19,7 +19,7 @@ Mesh::Mesh(const Eigen::MatrixXd& V_, const Eigen::MatrixXi& F_)
     // Because of that and that we only make simulations of paper we simply set the dihedralAngles to 0
     // Because all normals are collinear to each other in resting shape
     
-    //calculateAllDihedralAngles(dihedralAngles);
+    calculateAllDihedralAngles(dihedralAngles);
     dihedralAngles = Eigen::VectorXd::Zero(uE.rows());
 
 
@@ -35,6 +35,16 @@ void Mesh::calculateAllDihedralAngles(Eigen::VectorXd& angles) {
     angles.resize(uE.rows());
 
     igl::per_face_normals(V, F, FN); // Compute per face normals have to be normalized
+    Eigen::RowVector3d upward(0, 0, 1);
+
+    // Iterate over each normal and flip if it points downward
+    for (int i = 0; i < FN.rows(); ++i) {
+        if (FN.row(i).dot(upward) < 0) {
+            FN.row(i) = -FN.row(i);
+        }
+    }
+
+
     for (int i = 0; i < EF.rows(); i++) {
         if (EF(i, 1) == -1 || EF(i, 0) == -1) { //boundary edge
             angles(i) = 0.0f;
@@ -51,6 +61,8 @@ void Mesh::calculateAllDihedralAngles(Eigen::VectorXd& angles) {
         angles(i) = angle;
 
     }
+
+
 }
 
 
