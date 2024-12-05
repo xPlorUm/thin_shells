@@ -14,7 +14,7 @@
 // For AD
 constexpr double PI = 3.14159265358979323846;
 
-constexpr double Epsilon = 1e-6;
+constexpr double Epsilon = 1e-4;
 
 // Mesh class representing a 3D mesh structure
 class Mesh {
@@ -92,15 +92,24 @@ public:
         int v0_i = uE(e_idx, 0);
 
         Eigen::Matrix<Scalar, 1, 3> n0, n1;
+        // Face0
         if (F(face0, v0_f0idx) == v0_i) { // Face0 correct
             computeNormal(v0, v1, corner0, n0);
-            computeNormal(v1, v0, corner1, n1);
         }
         else {
             computeNormal(v1, v0, corner0, n0);
-            computeNormal(v0, v1, corner1, n1);
-
         }
+
+        // Face 1
+        int c0_f1idx = EI(e_idx, 1);
+        int v0_f1idx = (c0_f1idx + 1) % 3;
+        if (F(face1, v0_f1idx) == v0_i) { // Face1 correct
+            computeNormal(v0, v1, corner1, n1);
+        }
+        else {
+            computeNormal(v1, v0, corner1, n1);
+        }
+
 
         Scalar cos = n0.dot(n1);
 
@@ -109,10 +118,9 @@ public:
 
         Scalar angle = acos(cos);
         
-        if (angle < 0) angle = -angle; // Get Absolute value of angle
-
+        Scalar absAngle = angle > 0 ? angle : -angle;
         // Apply a threshold to determine if the edge is a crease
-        if (angle > plastic_deformation_threshold) {
+        if (absAngle > plastic_deformation_threshold) {
             stiffness(e_idx) = 0.5;
         }
 
@@ -133,15 +141,7 @@ private:
         Eigen::Matrix<Scalar, 1, 3> edge1 = v1 - v0;
         Eigen::Matrix<Scalar, 1, 3> edge2 = corner - v0;
 
-        res = edge1.cross(edge2);
-        Scalar norm = res.norm();
-        if (norm > Epsilon) {
-            res /= norm;
-        }
-        else {
-            // Handle degenerate triangles (zero-area)
-            res.setZero();
-        }
+        res = edge1.cross(edge2).normalized();
     }
 
     // Computes the face height of the given 3 vertices of the face

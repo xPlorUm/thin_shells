@@ -152,8 +152,65 @@ bool DiscreteShell::advanceOneStep(int step) {
     return false;
 }
 
+//bool DiscreteShell::advanceOneStep(int step) {
+//    // Reset forces
+//    forces.setZero(V->rows(), 3);
+//
+//    // Compute forces
+//    computeStrechingForces(forces);
+//    computeBendingForces(bending_forces);
+//    forces += bending_forces;
+//
+//    // Compute damping forces
+//    Eigen::MatrixX3d damping_forces = Eigen::MatrixX3d::Zero(V->rows(), 3);
+//    computeDampingForces(damping_forces);
+//    forces += damping_forces;
+//
+//    // Open a file to log data (appending mode)
+//
+//    // Compute acceleration
+//    Eigen::MatrixX3d acceleration = Eigen::MatrixX3d::Zero(V->rows(), 3);
+//    for (int i = 0; i < Velocity->rows(); ++i) {
+//        double mass_i = M.coeff(i, i); // Mass for particle i
+//        acceleration.row(i) = forces.row(i) / mass_i;
+//
+//        // If we are at vertex 0, log
+//        Eigen::Vector3d force = forces.row(i);
+//        Eigen::Vector3d velocity = Velocity->row(i);
+//
+//#ifdef DEBUG_VERTEX
+//        // If we are at vertex 0, log the velocity and force
+//        // Log time, velocity, force, and position for vertex 0
+//        if (i == 0) {
+//            fileDebugger.getStream() << num_steps++ << ","
+//                    << V->row(0).x() << "," << V->row(0).y() << "," << V->row(0).z() << ","
+//                    << velocity.x() << "," << velocity.y() << "," << velocity.z() << ","
+//                    << force.x() << "," << force.y() << "," << force.z() << ","
+//                    << bending_forces.row(0).x() << "," << bending_forces.row(0).y() << "," << bending_forces.row(0).z() << ","
+//                    << damping_forces.row(0).x() << "," << damping_forces.row(0).y() << "," << damping_forces.row(0).z() << ","
+//                    << "\n";
+//        }
+//#endif
+//
+//    }
+//
+//    // Newmark integration loop
+//    for (int i = 0; i < V->rows(); ++i) {
+//        // Update position
+//        V->row(i) += dt * Velocity->row(i) +
+//                     dt * dt * ((1.0 - beta) * acceleration.row(i) + beta * acceleration.row(i));
+//
+//        // Update velocity
+//        Velocity->row(i) += dt * ((1.0 - gamma) * acceleration.row(i) + gamma * acceleration.row(i));
+//    }
+//
+//    // Update the deformed mesh
+//    deformedMesh.V = *V;
+//
+//    return false; // Continue simulation
+//}
 
-void DiscreteShell::computeStrechingForces(Eigen::MatrixX3d &forces) {
+void DiscreteShell::computeStrechingForces(Eigen::MatrixX3d& forces) {
     // TODO : that should use baraff triangle methods.
     // Compute stretching forces
     // Iterate over all edges
@@ -194,10 +251,16 @@ void DiscreteShell::computeBendingForces(Eigen::MatrixX3d& bending_forces) {
         Eigen::RowVector3<T> v0 = element.variables(deformedMesh.uE(edge_idx, 0));
         Eigen::RowVector3<T> v1 = element.variables(deformedMesh.uE(edge_idx, 1));
 
+        if (edge_idx == 10)
+            std::cout << "Test" << std::endl;
+
         // Compute dihedral angle, height, and norm
         double angle_u = undeformedMesh.dihedralAngles(edge_idx);
 
         T angle_d = deformedMesh.computeDihedralAngle(v0, v1, edge_idx);
+        if (angle_d > 2)
+            std::cout << angle_d << std::endl;
+        angle_d = deformedMesh.computeDihedralAngle(v0, v1, edge_idx);
 
         deformedMesh.dihedralAngles(edge_idx) = TinyAD::to_passive(angle_d);
         // TODO: change the resting angle of the undeformed mesh
@@ -207,7 +270,7 @@ void DiscreteShell::computeBendingForces(Eigen::MatrixX3d& bending_forces) {
         double stiffness = deformedMesh.stiffness(edge_idx);
 
         // Edge Case
-        if (height <= Epsilon || norm <= Epsilon) 
+        if (height <= Epsilon || norm <= Epsilon)
             return (T)0.0;
 
         // Compute bending energy for this edge

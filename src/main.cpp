@@ -19,7 +19,6 @@
 std::string PATH = "../data/";
 //string file = "paper-plane-subd.off";
 std::string file = "old_assignment/woody-hi.off";
-//std::string file = "/twisted.off";
 
 using namespace std;
 using namespace Eigen;

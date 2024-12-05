@@ -14,7 +14,14 @@ Mesh::Mesh() {
 Mesh::Mesh(const Eigen::MatrixXd& V_, const Eigen::MatrixXi& F_)
     : V(V_), F(F_) {
     igl::edge_flaps(F, uE, EMAP, EF, EI); // Compute the edges and the edge-face incidence
-    calculateAllDihedralAngles(dihedralAngles);
+
+    // At the beginning of the simulation we have a already twisted sheet
+    // Because of that and that we only make simulations of paper we simply set the dihedralAngles to 0
+    // Because all normals are collinear to each other in resting shape
+    
+    //calculateAllDihedralAngles(dihedralAngles);
+    dihedralAngles = Eigen::VectorXd::Zero(uE.rows());
+
 
 
     // set stiffness to 1 for all edges
