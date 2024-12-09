@@ -56,10 +56,10 @@ void Mesh::calculateDihedralAngles(int i, DualVector& angles) {
         angles(ni) = acos(cos);
 
         // Apply a threshold to determine if the edge is a crease
-        if (abs(angles(ni)) > plastic_deformation_threshold) { 
+        if (abs(angles(ni)) < plastic_deformation_threshold) { 
             stiffness(ni) = 0.5;
+            // change the resting angle of the undeformed mesh
             dihedralAngles(edgeI) = double(angles[ni]);
-            // TODO: change the resting angle of the undeformed mesh
         }
         ni++;
     }
