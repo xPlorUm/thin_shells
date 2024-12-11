@@ -7,7 +7,7 @@
 #include <iostream>
 #include <igl/massmatrix.h>
 #include <fstream>
-
+#include "Solver.h"
 
 class FileDebugger {
 private :
@@ -55,15 +55,23 @@ public:
         std::cout << "Forces : " << forces.row(vertex_index) << std::endl;
     }
 
-// Returns the positions to get drawn
-// TODO : this should be a pointer
-const Eigen::MatrixXd* getPositions();
-const Eigen::MatrixXi* getFaces();
+    // Returns the positions to get drawn
+    // TODO : this should be a pointer
+    const Eigen::MatrixXd* getPositions();
+    const Eigen::MatrixXi* getFaces();
+
+    void compute_F_int(Eigen::MatrixX3d &_forces, const Eigen::MatrixXd *_V) const;
+
+    void addStrechingForcesTo(Eigen::MatrixX3d &_forces, const Eigen::MatrixXd *_V);
+
+    void addBendingForcesTo(Eigen::MatrixX3d &forces, const Eigen::MatrixXd *_V, const Eigen::MatrixXi *_E);
+
+    void addStretchingHessianTo(std::vector<Eigen::Triplet<double>> &triplets, const Eigen::MatrixXd *V_);
 
 private:
 
     // Physical properties
-    double dt; // Time step
+    double m_dt; // Time step
     double simulation_duration; // Total simulation duration
     // double bending_stiffness; // Stiffness for bending energy
 
@@ -72,7 +80,7 @@ private:
     Mesh undeformedMesh;
 
     Eigen::MatrixXi *F; // Faces of the shell
-    Eigen::MatrixXd *V; // Current mesh
+    Eigen::MatrixXd *V; // Current mesh,
     Eigen::MatrixXd V_rest; // Undeformed mesh
     Eigen::MatrixXd *Velocity; // Velocity of the shell (point-wise)
     Eigen::MatrixXi *E; // Edges of the shell
@@ -84,24 +92,18 @@ private:
     double stiffness_damping = 0.5; // Stiffness damping coefficient
     double mass_damping = 0.5; // Mass damping coefficient
 
-    // Time integration (Newmark scheme)
-    void updateDynamicStates();
-    bool linearSolve(Eigen::SparseMatrix<double>& K, const Eigen::VectorXd& residual, Eigen::VectorXd& du);
 
     // Newmark-specific parameters
-    double beta = 0.25; // Newmark parameter (default: 0.25 for implicit integration)
-    double gamma = 0.5; // Newmark parameter (default: 0.5 for implicit integration)
+    double m_beta = 0.25; // Newmark parameter (default: 0.25 for implicit integration)
+    double m_gamma = 0.5; // Newmark parameter (default: 0.5 for implicit integration)
 
-    // Helper function to build system matrix
-    void buildSystemMatrix(Eigen::SparseMatrix<double>& K);
-
-    void computeStrechingForces(Eigen::MatrixX3d& forces); // Compute stretching forces
-    void computeBendingForces(Eigen::MatrixX3d& bending_forces); // Compute bending forces
     void computeDampingForces(Eigen::MatrixX3d& damping_forces); // Compute damping forces
-    var totalBendingEnergy();
     var BendingEnergy(int i);
 
     FileDebugger fileDebugger = FileDebugger("vertex_data.csv");
+
+
+    Solver* m_solver;
 
 };
 

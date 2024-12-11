@@ -24,4 +24,15 @@ void pretty_print_vectorX3d(const Eigen::MatrixX3d& v) {
     std::cout << std::endl;
 }
 
+
+void extendMatrix(const Eigen::SparseMatrix<double> *M, Eigen::SparseMatrix<double> &M_extended) {
+    for (int i = 0; i < M->rows(); i++) {
+        for (int j = 0; j < M->cols(); j++) {
+            M_extended.coeffRef(3 * i, 3 * j) = M->coeff(i, j);
+            M_extended.coeffRef(3 * i + 1, 3 * j + 1) = M->coeff(i, j);
+            M_extended.coeffRef(3 * i + 2, 3 * j + 2) = M->coeff(i, j);
+        }
+    }
+}
+
 #endif //THINSHELLS_COMMON_H

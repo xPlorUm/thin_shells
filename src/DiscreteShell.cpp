@@ -20,9 +20,9 @@ int num_steps = 0;
 
 // Constructor
 DiscreteShell::DiscreteShell()
-    : dt(0.03), simulation_duration(10.0),
+    : m_dt(0.03), simulation_duration(10.0),
     // bending_stiffness(1.0),
-      beta(0.25), gamma(0.5)
+      m_beta(0.25), m_gamma(0.5)
 {
     F = new Eigen::MatrixXi(0, 3);
     V = new Eigen::MatrixXd(0, 3);
@@ -108,73 +108,19 @@ void DiscreteShell::initializeFromFile(const std::string& filename) {
     Velocity->resize(V->rows(), 3);
     Velocity->setZero();
 
+    // Itialize the solver
+    m_solver = new Solver(m_beta, m_gamma, m_dt, &M);
+    m_solver->setDiscreteShell(this);
+
 }
-
-// bool DiscreteShell::advanceOneStep(int step) {
-
-//     // Reset forces
-//     forces = Eigen::MatrixX3d::Zero(V->rows(), 3);
-//     computeStrechingForces(forces);
-
-//     bending_forces = Eigen::MatrixX3d::Zero(V->rows(), 3);
-
-//     //only make part time bending energy because it is so slow now
-//     //if (step > 40) {
-//     computeBendingForces(bending_forces);
-//     // std::cout << "Bending force calculated" << std::endl;
-//     forces += bending_forces;
-//     //}
-
-//     Eigen::MatrixX3d damping_forces = Eigen::MatrixX3d::Zero(V->rows(), 3);
-//     computeDampingForces(damping_forces);
-//     forces += damping_forces;
-
-//     // Open a file to log data (appending mode)
-//     std::ofstream dataFile;
-//     dataFile.open("vertex_data.csv", std::ios_base::app);
-
-//     // Update positions with Newton's law
-//     for (int i = 0; i < Velocity->rows(); i++) {
-//         Eigen::Vector3d force = forces.row(i);
-//         Eigen::Vector3d velocity = Velocity->row(i);
-
-//         // If we are at vertex 0, log the velocity and force
-//         // Log time, velocity, force, and position for vertex 0
-//         if (i == 0) {
-//             dataFile << num_steps++ << ","
-//                     << V->row(0).x() << "," << V->row(0).y() << "," << V->row(0).z() << ","
-//                     << velocity.x() << "," << velocity.y() << "," << velocity.z() << ","
-//                     << force.x() << "," << force.y() << "," << force.z() << ","
-//                     << bending_forces.row(0).x() << "," << bending_forces.row(0).y() << "," << bending_forces.row(0).z() << ","
-//                     << damping_forces.row(0).x() << "," << damping_forces.row(0).y() << "," << damping_forces.row(0).z() << ","
-//                     << "\n";
-//         }
-
-//         double mass_i = M.coeff(i, i);
-//         Eigen::Vector3d acceleration = 1 / mass_i * force;
-//         // actually scaling by the mass works better because it's less unstable but whatever this is "more correct"
-//         Velocity->row(i) += dt * acceleration;
-//         V->row(i) += dt * Velocity->row(i);
-//     }
-
-//     // Update deformed mesh
-//     deformedMesh.V = *V;
-
-//     // Close the file after logging
-//     dataFile.close();
-
-//     return false;
-// }
 
 
 bool DiscreteShell::advanceOneStep(int step) {
     // Reset forces
     forces.setZero(V->rows(), 3);
-
     // Compute forces
-    computeStrechingForces(forces);
-    computeBendingForces(bending_forces);
-    forces += bending_forces;
+    addStrechingForcesTo(forces, V);
+    // addBendingForcesTo(forces, V, E);
 
     // Compute damping forces
     Eigen::MatrixX3d damping_forces = Eigen::MatrixX3d::Zero(V->rows(), 3);
@@ -184,7 +130,7 @@ bool DiscreteShell::advanceOneStep(int step) {
     // Open a file to log data (appending mode)
 
     // Compute acceleration
-    Eigen::MatrixX3d acceleration = Eigen::MatrixX3d::Zero(V->rows(), 3);
+    Eigen::MatrixXd acceleration = Eigen::MatrixXd::Zero(V->rows(), 3);
     for (int i = 0; i < Velocity->rows(); ++i) {
         double mass_i = M.coeff(i, i); // Mass for particle i
         acceleration.row(i) = forces.row(i) / mass_i;
@@ -208,15 +154,16 @@ bool DiscreteShell::advanceOneStep(int step) {
 #endif
 
     }
+    m_solver->solve(V, Velocity, &acceleration);
 
     // Newmark integration loop
     for (int i = 0; i < V->rows(); ++i) {
         // Update position
-        V->row(i) += dt * Velocity->row(i) +
-                     dt * dt * ((1.0 - beta) * acceleration.row(i) + beta * acceleration.row(i));
+        V->row(i) += m_dt * Velocity->row(i) +
+                     m_dt * m_dt * ((1.0 - m_beta) * acceleration.row(i) + m_beta * acceleration.row(i));
 
         // Update velocity
-        Velocity->row(i) += dt * ((1.0 - gamma) * acceleration.row(i) + gamma * acceleration.row(i));
+        Velocity->row(i) += m_dt * ((1.0 - m_gamma) * acceleration.row(i) + m_gamma * acceleration.row(i));
     }
 
     // Update the deformed mesh
@@ -226,39 +173,104 @@ bool DiscreteShell::advanceOneStep(int step) {
 }
 
 
-
-void DiscreteShell::computeStrechingForces(Eigen::MatrixX3d &forces) {
-    // TODO : that should use baraff triangle methods.
-    // Compute stretching forces
-    // Iterate over all edges
-    // Compute the stretching force for each edge
-    // Add the stretching force to the forces vector
-    forces.setZero();
+/**
+ * Given the edges and vertices positions, adds the stretchings forces to the passed vector.
+ */
+void DiscreteShell::addStrechingForcesTo(Eigen::MatrixX3d &_forces, const Eigen::MatrixXd *V_) {
+    // TODO : make this static or something
+    Eigen::MatrixX3d forces_2 = Eigen::MatrixX3d::Zero(V_->rows(), 3);
+    // Iterate over each edges
     for (int i = 0; i < E->rows(); i++) {
         // Get the indices of the two vertices of the edge
         int v1 = E->operator()(i, 0);
         int v2 = E->operator()(i, 1);
         // Get the positions of the two vertices
-        Eigen::Vector3d p1 = V->row(v1);
-        Eigen::Vector3d p2 = V->row(v2);
+        Eigen::Vector3d p1 = V_->row(v1);
+        Eigen::Vector3d p2 = V_->row(v2);
         // Compute the stretching force
         double current_length = (p2 - p1).norm();
         double rest_length = E_length_rest(i);
-        double force_magnitude = k_membrane *  (current_length - rest_length);
+        double force_magnitude = k_membrane * (current_length - rest_length);
         auto direction = (p2 - p1).normalized();
         Eigen::Vector3d fi = force_magnitude * direction;
-        forces.row(v1) += fi;
-        forces.row(v2) -= fi;
+        forces_2.row(v1) += fi;
+        forces_2.row(v2) -= fi;
+    }
+    _forces += forces_2;
+}
+
+
+// FULL CHATGPT GENERATED <3
+void DiscreteShell::addStretchingHessianTo(
+        std::vector<Eigen::Triplet<double>> &triplets,
+        const Eigen::MatrixXd *V_
+) {
+    // Each vertex has 3 DOFs: the global index for dof (x,y,z) of vertex v is:
+    // global_dof = v * 3 + component, where component in {0,1,2} for x,y,z.
+
+    for (int i = 0; i < E->rows(); i++) {
+        int v1 = (*E)(i, 0);
+        int v2 = (*E)(i, 1);
+
+        Eigen::Vector3d p1 = V_->row(v1);
+        Eigen::Vector3d p2 = V_->row(v2);
+
+        Eigen::Vector3d d = p2 - p1;
+        double r = d.norm();
+        double L0 = E_length_rest(i);
+        double t = (r - L0);
+        double inv_r = 1.0 / r;
+
+        Eigen::Matrix3d I = Eigen::Matrix3d::Identity();
+        Eigen::Matrix3d ddT = (d * d.transpose()) * (inv_r * inv_r);
+
+        double factor = k_membrane;
+        double t_over_r = t * inv_r;
+
+        // Hessian block for a spring:
+        // K_block = factor * [ (1 - t/r)*ddT + (t/r)*I ]
+        Eigen::Matrix3d K_block = factor * ((1.0 - t_over_r)*ddT + t_over_r*I);
+
+        // Blocks:
+        // K_ii = K_block
+        // K_jj = K_block
+        // K_ij = -K_block
+        // K_ji = -K_block
+        Eigen::Matrix3d K_ii = K_block;
+        Eigen::Matrix3d K_jj = K_block;
+        Eigen::Matrix3d K_ij = -K_block;
+        Eigen::Matrix3d K_ji = -K_block;
+
+        int row_i = v1 * 3;
+        int row_j = v2 * 3;
+        int col_i = v1 * 3;
+        int col_j = v2 * 3;
+
+        // Helper lambda to add a 3x3 block to the triplets
+        auto addBlock = [&](int base_row, int base_col, const Eigen::Matrix3d &M) {
+            for (int rr = 0; rr < 3; rr++) {
+                for (int cc = 0; cc < 3; cc++) {
+                    double val = M(rr, cc);
+                    if (val != 0.0) {
+                        triplets.emplace_back(base_row + rr, base_col + cc, val);
+                    }
+                }
+            }
+        };
+
+        // Add the blocks to the triplet list
+        addBlock(row_i, col_i, K_ii);
+        addBlock(row_i, col_j, K_ij);
+        addBlock(row_j, col_i, K_ji);
+        addBlock(row_j, col_j, K_jj);
     }
 }
 
 
-void DiscreteShell::computeBendingForces(Eigen::MatrixX3d& bending_forces) {
+
+void DiscreteShell::addBendingForcesTo(Eigen::MatrixX3d &forces, const Eigen::MatrixXd *_V, const Eigen::MatrixXi *_E) {
 
     // std::cout << "Computing bending forces" << std::endl;
-    
-    bending_forces.setZero(V_rest.rows(), 3);
-
     for (int i = 0; i < V_rest.rows(); i++) {
         // Add bending forces
         auto energy_f = [this](int i) -> var {
@@ -270,11 +282,13 @@ void DiscreteShell::computeBendingForces(Eigen::MatrixX3d& bending_forces) {
         var energy = energy_f(i); // forward
         DualVector x = deformedMesh.V.row(i);
         auto grad = gradient(energy, x);
-        bending_forces.row(i) = -Eigen::Map<Eigen::Vector3d>(grad.data());
+        forces.row(i) = -Eigen::Map<Eigen::Vector3d>(grad.data());
     }
-
 }
 
+/**
+ * Calculates the bending energy for vertex i
+ */
 var DiscreteShell::BendingEnergy(int i) {
 
     // std::cout << "Calculating bending energy for vertex " << i << std::endl;
@@ -329,55 +343,13 @@ void DiscreteShell::computeDampingForces(Eigen::MatrixX3d &damping_forces) {
     //td::cout << "Damping force for vertex 0 : " << damping_forces.row(0) << std::endl;
 }
 
-//void DiscreteShell::computeBendingForces(Eigen::MatrixX3d& bending_forces) {
-//    bending_forces.setZero();
-//
-//    // Add bending forces
-//    auto energy_f = [this]() -> var {
-//        return totalBendingEnergy();
-//        };
-//
-//    // Derivative and forward pass of Bending energy function
-//    // Shape of derivative is (#V, 3)
-//    var energy = energy_f(); // forward
-//    DualVector x = Eigen::Map<DualVector>(deformedMesh.V.data(), deformedMesh.V.size(), 1);
-//    bending_forces = -Eigen::Map<Eigen::MatrixXd>(
-//        gradient(energy, x).data(), deformedMesh.V.rows(), deformedMesh.V.cols()
-//    );
-//    std::cout << x << std::endl;
-//    std::cout << "x = " << x << std::endl;
-//    std::cout << "Jacobian of energy with respect to x = " << bending_forces << std::endl;
-//
-//}
-
-//var DiscreteShell::totalBendingEnergy() {
-//    int nE = undeformedMesh.uE.rows();
-//    assert(undeformedMesh.uE.rows() == deformedMesh.uE.rows());
-//
-//    DualVector angles_u(nE), angles_d(nE);
-//    DualVector stiffness_u(nE), stiffness_d(nE);
-//    DualVector heights(nE), norms(nE);
-//
-//
-//    // Calculate the dihedral angles and the stiffness of the mesh
-//    undeformedMesh.calculateDihedralAngle(angles_u, stiffness_u);
-//    //std::cout << angles_u.sum() << std::endl;
-//
-//    deformedMesh.calculateDihedralAngle(angles_d, stiffness_d);
-//    //deformedMesh.computeAverageHeights(heights);
-//    //deformedMesh.computeEdgeNorms(norms);
-//
-//
-//    DualVector flex(nE); //flexural energy per undirected edge
-//    auto mask = (heights.array() != 0).cast<var>();
-//    flex = mask * (((angles_u - angles_d).array().square() * norms.array()) / heights.array());
-//
-//    //std::cout << flex.sum() <<  std::endl;
-//    //TODO multiply flex with Stiffness Matrix
-//
-//    return flex.sum();
-//}
-
+/**
+ * Given a vertice configuration, computes the internal forces.
+ */
+void DiscreteShell::compute_F_int(Eigen::MatrixX3d &_forces, const Eigen::MatrixXd *_V) const {
+    // addStrechingForcesTo(_forces, _V, E);
+    // addBendingForces(forces);
+}
 
 const Eigen::MatrixXd* DiscreteShell::getPositions() {
     return V;
