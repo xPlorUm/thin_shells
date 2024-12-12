@@ -31,8 +31,8 @@ void Solver::solve(Eigen::MatrixXd *Position_i, Eigen::MatrixXd *Velocity_i, Eig
         Eigen::MatrixXd f_int_matrix = Eigen::MatrixX3d::Zero(m_discreteshell->N_VERTICES, 3);
         // Convert back u_n to Eigen::MatrixXd and takes its pointer
         // TODO : is that correct ? Is the vector -> Matrix conversion correct ? No lmao
-        Eigen::MatrixXd u_n_matrix = Eigen::Map<const Eigen::MatrixXd>(u_n.data(), m_discreteshell->N_VERTICES, 3);
-        // m_discreteshell->addStrechingForcesTo(f_int_matrix, &u_n_matrix); // Use updated positions
+        Eigen::MatrixXd u_n_matrix = deflatten_vector(u_n);
+        m_discreteshell->addStrechingForcesTo(f_int_matrix, &u_n_matrix); // Use updated positions
         // E IS NOT USED !!!
         m_discreteshell->addBendingForcesTo(f_int_matrix, &u_n_matrix, m_discreteshell->getFaces());
         // Flatten that shit
@@ -40,10 +40,10 @@ void Solver::solve(Eigen::MatrixXd *Position_i, Eigen::MatrixXd *Velocity_i, Eig
         // Step 5: Compute residual: R = M * a_new + C * v_new + f_int - f_ext
         // As of now, damping matrix is a simple identity matrix SET TO ZERO
         // TODO : don't forget the mass !
-        Eigen::VectorXd residual = a_n + f_int - f_ext_flatten;
+        // ! This is MINUS f_int as we are moving f_int the other side !
+        Eigen::VectorXd residual = a_new - f_int - f_ext_flatten;
         return residual;
     };
-
     // Create new vectors with flattened values, copied
     Eigen::VectorXd Position_flatten = flatten_matrix(*Position_i);
     Eigen::VectorXd Velocity_flatten = flatten_matrix(*Velocity_i);// Eigen::Map<const Eigen::VectorXd>(Velocity_i->data(), Velocity_i->rows() * 3);
@@ -51,7 +51,7 @@ void Solver::solve(Eigen::MatrixXd *Position_i, Eigen::MatrixXd *Velocity_i, Eig
     Eigen::VectorXd u_new = Position_flatten;
 
     Eigen::MatrixXd f_ext_matrix = Eigen::MatrixXd::Zero(m_discreteshell->N_VERTICES, 3);
-    m_discreteshell->add_F_ext(f_ext_matrix);
+    // m_discreteshell->add_F_ext(f_ext_matrix);
     Eigen::VectorXd f_ext_flatten = flatten_matrix(f_ext_matrix);
     Eigen::VectorXd residual = R(u_new, Position_flatten, Velocity_flatten, Acceleration_flatten, f_ext_flatten);
     std::cout << residual.norm() << std::endl;
@@ -60,24 +60,43 @@ void Solver::solve(Eigen::MatrixXd *Position_i, Eigen::MatrixXd *Velocity_i, Eig
     // Compute System matrix of the system
     auto S = [this, C](Eigen::VectorXd &Position, Eigen::VectorXd &Velocity, Eigen::VectorXd &Acceleration) {
         Eigen::SparseMatrix<double> K = Eigen::SparseMatrix<double>(Position.rows(), Position.rows());
-        K = (*m_M_extended / (m_beta * (m_dt * m_dt))) + C * (m_gamma / (m_beta * m_dt));
+        K = (*m_M_extended / (m_beta * (m_dt * m_dt))); //+ C * (m_gamma / (m_beta * m_dt));
         return K;
     };
     // Reference : https://chatgpt.com/c/67585038-9a24-800f-a9cd-a44d464ad723
 
-    std::vector<Eigen::Triplet<double>> triplets = std::vector<Eigen::Triplet<double>>();
-    Eigen::SparseMatrix<double> systemMatrix = Eigen::SparseMatrix<double>(Position_i->rows() * 3, Position_i->rows() * 3);
-    m_discreteshell->addStretchingHessianTo(triplets, Position_i);
-    systemMatrix.setFromTriplets(triplets.begin(), triplets.end());
-    systemMatrix += S(Position_flatten, Velocity_flatten, Acceleration_flatten);
-    // K delta_x = -R : solving that system
-    Eigen::VectorXd delta_x = Eigen::VectorXd::Zero(Position_i->rows() * 3);
-    linearSolve(systemMatrix, residual, delta_x);
+    bool converged = false;
+    for(int iter = 0; iter < 50; iter++) {
+        Eigen::VectorXd residual = R(u_new, Position_flatten, Velocity_flatten, Acceleration_flatten, f_ext_flatten);
+        double residual_norm = residual.norm();
+        if (residual_norm < 1e-4) {
+            std::cout << "Converged in " << iter << " iterations." << std::endl;
+            converged = true;
+            return;
+        }
+        std::vector<Eigen::Triplet<double>> triplets = std::vector<Eigen::Triplet<double>>();
+        Eigen::SparseMatrix<double> systemMatrix = Eigen::SparseMatrix<double>(Position_i->rows() * 3, Position_i->rows() * 3);
+        m_discreteshell->addStretchingHessianTo(triplets, Position_i);
+        systemMatrix.setFromTriplets(triplets.begin(), triplets.end());
+        systemMatrix += S(Position_flatten, Velocity_flatten, Acceleration_flatten);
+
+        // Sove delta_x = K^-1 * -R (The system matrix is the jacobian of R)
+        Eigen::VectorXd delta_x = Eigen::VectorXd::Zero(Position_i->rows() * 3);
+        if (!linearSolve(systemMatrix, residual, delta_x)) {
+            std::cerr << "Linear solve failed!" << std::endl;
+            break;
+        }
+        u_new -= delta_x;
+        std::cout << "Iteration " << iter << ": Update norm = " << delta_x.norm() <<  " residual=" << residual_norm << std::endl;
+    }
+    if (!converged) {
+        std::cerr << "Did not converge!" << std::endl;
+    }
 }
 
 
 
-void Solver::linearSolve(const Eigen::SparseMatrix<double> &systemMatrix,
+bool Solver::linearSolve(const Eigen::SparseMatrix<double> &systemMatrix,
                          const Eigen::VectorXd &rhs,
                          Eigen::VectorXd &delta_x) {
     // We can use a direct sparse solver from Eigen, for example SparseLU or SparseCholesky
@@ -88,11 +107,13 @@ void Solver::linearSolve(const Eigen::SparseMatrix<double> &systemMatrix,
     solver.factorize(systemMatrix);
     if (solver.info() != Eigen::Success) {
         std::cerr << "Factorization failed!" << std::endl;
-        return;
+        return false;
     }
 
     delta_x = solver.solve(rhs);
     if (solver.info() != Eigen::Success) {
         std::cerr << "Solving failed!" << std::endl;
+        return false;
     }
+    return true;
 }

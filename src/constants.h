@@ -7,5 +7,6 @@
 
 double BENDING_STIFFNESS = 10.0;
 double STRETCHING_STIFFNESS = 1.0;
+double DAMPING = 0.1;
 
 #endif //THINSHELLS_CONSTANTS_H

@@ -77,6 +77,8 @@ void DiscreteShell::initializeFromFile(const std::string& filename) {
 
     // Set massmatrix
     igl::massmatrix(V_rest, *F, igl::MASSMATRIX_TYPE_VORONOI, M);
+    // set M as identy for now
+    M.setIdentity();
     // Set up the inverse of M
     // to avoid instability
     // Get all edges
@@ -127,9 +129,8 @@ bool DiscreteShell::advanceOneStep(int step) {
     // Reset forces
     forces.setZero(V->rows(), 3);
     // Compute forces
-    // addStrechingForcesTo(forces, V);
+    addStrechingForcesTo(forces, V);
     addBendingForcesTo(forces, V, E);
-
     // Compute damping forces
     Eigen::MatrixX3d damping_forces = Eigen::MatrixX3d::Zero(V->rows(), 3);
     computeDampingForces(damping_forces);
@@ -143,7 +144,6 @@ bool DiscreteShell::advanceOneStep(int step) {
         double mass_i = M.coeff(i, i); // Mass for particle i
          acceleration.row(i) = forces.row(i);// / mass_i;
 
-        // If we are at vertex 0, log
         Eigen::Vector3d force = forces.row(i);
         Eigen::Vector3d velocity = Velocity->row(i);
 
@@ -162,6 +162,7 @@ bool DiscreteShell::advanceOneStep(int step) {
 #endif
     }
 
+    m_solver->solve(V, Velocity, &acceleration);
     // Newmark integration loop
     for (int i = 0; i < V->rows(); ++i) {
         // Update position
@@ -172,7 +173,6 @@ bool DiscreteShell::advanceOneStep(int step) {
         Velocity->row(i) += m_dt * ((1.0 - m_gamma) * acceleration.row(i) + m_gamma * acceleration.row(i));
     }
 
-    m_solver->solve(V, Velocity, &acceleration);
 
     // Update the deformed mesh
     // TODO : useles
@@ -343,9 +343,6 @@ void DiscreteShell::computeDampingForces(Eigen::MatrixX3d &damping_forces) {
 
     // Mass damping
     damping_forces += -1 * mass_damping * M * (*Velocity);
-
-    // Damping force for vertex 0
-    //td::cout << "Damping force for vertex 0 : " << damping_forces.row(0) << std::endl;
 }
 
 /**

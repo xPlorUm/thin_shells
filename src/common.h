@@ -53,4 +53,23 @@ inline Eigen::VectorXd flatten_matrix(Eigen::MatrixXd &m) {
     return Eigen::Map<Eigen::VectorXd>(m_transposed.data(), m_transposed.cols() * m_transposed.rows());
 }
 
+/**
+ * "deflattens" a vector into a matrix, where each row is a part of the vector.
+ *
+ * Eg :
+ * 1 2 3 4 5 6 7 8 9
+ * will be
+ * 1 2 3
+ * 4 5 6
+ * 7 8 9
+ */
+inline Eigen::MatrixXd deflatten_vector(const Eigen::VectorXd &v) {
+    // TODO : this is garbage, find a better way
+    Eigen::MatrixXd m = Eigen::MatrixXd(v.size() / 3, 3);
+    for (int i = 0; i < v.size(); i += 3) {
+        m.row(i / 3) = v.segment<3>(i).transpose();
+    }
+    return m;
+}
+
 #endif //THINSHELLS_COMMON_H
