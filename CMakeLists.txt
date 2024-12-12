@@ -20,7 +20,9 @@ add_subdirectory(autodiff)  # Replace with the actual path where autodiff is loc
 
 # Add your project files
 FILE(GLOB SRCFILES src/*.cpp)
-add_executable(${PROJECT_NAME} ${SRCFILES})
+add_executable(${PROJECT_NAME} ${SRCFILES}
+        src/utils.h
+        src/constants.h)
 #target_link_libraries(${PROJECT_NAME} igl::core igl::imgui igl::glfw)
 
 # Link libigl and autodiff libraries to your project

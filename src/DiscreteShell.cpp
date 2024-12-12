@@ -142,7 +142,7 @@ bool DiscreteShell::advanceOneStep(int step) {
     Eigen::MatrixXd acceleration = Eigen::MatrixXd::Zero(V->rows(), 3);
     for (int i = 0; i < Velocity->rows(); ++i) {
         double mass_i = M.coeff(i, i); // Mass for particle i
-         acceleration.row(i) = forces.row(i);// / mass_i;
+        acceleration.row(i) = forces.row(i);// / mass_i;
 
         Eigen::Vector3d force = forces.row(i);
         Eigen::Vector3d velocity = Velocity->row(i);
@@ -161,8 +161,17 @@ bool DiscreteShell::advanceOneStep(int step) {
         }
 #endif
     }
+    Eigen::MatrixXd new_position = Eigen::MatrixXd::Zero(V->rows(), 3);
+    m_solver->solve(new_position, Velocity, &acceleration, V);
 
-    m_solver->solve(V, Velocity, &acceleration);
+    Eigen::MatrixXd a_new =
+            (new_position - *V - m_dt * *Velocity - (m_dt * m_dt) * (0.5 - m_beta) * acceleration) / (m_beta * m_dt * m_dt);
+    Eigen::MatrixXd v_new = *Velocity + m_dt * ((1.0 - m_gamma) * acceleration + m_gamma * a_new);
+    *V = new_position;
+    *Velocity = v_new;
+    acceleration = a_new;
+
+/*
     // Newmark integration loop
     for (int i = 0; i < V->rows(); ++i) {
         // Update position
@@ -172,10 +181,11 @@ bool DiscreteShell::advanceOneStep(int step) {
         // Update velocity
         Velocity->row(i) += m_dt * ((1.0 - m_gamma) * acceleration.row(i) + m_gamma * acceleration.row(i));
     }
+*/
 
 
     // Update the deformed mesh
-    // TODO : useles
+    // TODO : useless
     deformedMesh.V = *V;
 
     return false; // Continue simulation

@@ -26,7 +26,8 @@ public:
         }
     };
 
-    void solve(Eigen::MatrixXd *Position_i, Eigen::MatrixXd *Velocity_i, Eigen::MatrixXd *Acceleration_i);
+    bool solve(Eigen::MatrixXd &Position_solution, Eigen::MatrixXd *Velocity_i, Eigen::MatrixXd *Acceleration_i,
+               Eigen::MatrixXd *Position_i);
 
     /**
      * Sets the discrete shell

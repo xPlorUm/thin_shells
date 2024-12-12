@@ -11,7 +11,8 @@
 // TODO : move that to a common header
 #define PRINT_SHAPE(matrix) std::cout << #matrix << " : " << matrix.rows() << " " << matrix.cols() << std::endl;
 
-void Solver::solve(Eigen::MatrixXd *Position_i, Eigen::MatrixXd *Velocity_i, Eigen::MatrixXd *Acceleration_i) {
+bool Solver::solve(Eigen::MatrixXd &Position_solution, Eigen::MatrixXd *Velocity_i, Eigen::MatrixXd *Acceleration_i,
+                   Eigen::MatrixXd *Position_i) {
     // TODO : pass those as constants, or handle better the flattened versions
     Eigen::MatrixXd C = 0.5 * Eigen::MatrixXd::Identity(Position_i->rows() * 3, Position_i->rows() * 3);
     auto R = [this](
@@ -54,7 +55,6 @@ void Solver::solve(Eigen::MatrixXd *Position_i, Eigen::MatrixXd *Velocity_i, Eig
     // m_discreteshell->add_F_ext(f_ext_matrix);
     Eigen::VectorXd f_ext_flatten = flatten_matrix(f_ext_matrix);
     Eigen::VectorXd residual = R(u_new, Position_flatten, Velocity_flatten, Acceleration_flatten, f_ext_flatten);
-    std::cout << residual.norm() << std::endl;
     std::cout << "-----------------------------" << std::endl;
 
     // Compute System matrix of the system
@@ -64,15 +64,14 @@ void Solver::solve(Eigen::MatrixXd *Position_i, Eigen::MatrixXd *Velocity_i, Eig
         return K;
     };
     // Reference : https://chatgpt.com/c/67585038-9a24-800f-a9cd-a44d464ad723
-
-    bool converged = false;
     for(int iter = 0; iter < 50; iter++) {
         Eigen::VectorXd residual = R(u_new, Position_flatten, Velocity_flatten, Acceleration_flatten, f_ext_flatten);
         double residual_norm = residual.norm();
         if (residual_norm < 1e-4) {
-            std::cout << "Converged in " << iter << " iterations." << std::endl;
-            converged = true;
-            return;
+            Eigen::MatrixXd sol = deflatten_vector(u_new);
+            Position_solution = sol;
+            std::cout << "Converged in " << iter << " iterations, solution norm : " << (u_new - Position_flatten).norm() << std::endl;
+            return true;
         }
         std::vector<Eigen::Triplet<double>> triplets = std::vector<Eigen::Triplet<double>>();
         Eigen::SparseMatrix<double> systemMatrix = Eigen::SparseMatrix<double>(Position_i->rows() * 3, Position_i->rows() * 3);
@@ -87,11 +86,10 @@ void Solver::solve(Eigen::MatrixXd *Position_i, Eigen::MatrixXd *Velocity_i, Eig
             break;
         }
         u_new -= delta_x;
-        std::cout << "Iteration " << iter << ": Update norm = " << delta_x.norm() <<  " residual=" << residual_norm << std::endl;
+        std::cout << "Iteration " << iter << ": delta_x norm = " << delta_x.norm() <<  " residual=" << residual_norm << std::endl;
     }
-    if (!converged) {
-        std::cerr << "Did not converge!" << std::endl;
-    }
+    std::cerr << "Did not converge!" << std::endl;
+    return false;
 }
 
 
