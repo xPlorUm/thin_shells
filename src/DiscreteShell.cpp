@@ -6,6 +6,7 @@ Maybe we should change the function names since they're currently the same as th
 #include "DiscreteShell.h"
 #include "igl/read_triangle_mesh.h"
 #include "common.h"
+#include "constants.h"
 #include <iostream>
 #include <igl/edges.h> // Include this header to use igl::edges
 #include <filesystem>
@@ -20,7 +21,7 @@ int num_steps = 0;
 
 // Constructor
 DiscreteShell::DiscreteShell()
-    : m_dt(0.03), simulation_duration(10.0),
+    : m_dt(0.1), simulation_duration(10.0),
     // bending_stiffness(1.0),
       m_beta(0.25), m_gamma(0.5)
 {
@@ -70,21 +71,21 @@ void DiscreteShell::initializeFromFile(const std::string& filename) {
     for (int i = 0; i < V_undef.rows(); ++i) {
         V_undef(i, 1) = 0.0; // Set the y-coordinate (index 1) to 0
     }
-
+    // TODO REMOVE THAT SHIT
     undeformedMesh = Mesh(V_undef, *F);
 
 
     // Set massmatrix
     igl::massmatrix(V_rest, *F, igl::MASSMATRIX_TYPE_VORONOI, M);
+    // Set up the inverse of M
     // to avoid instability
-    M *= 500;
-
     // Get all edges
     std::cout << "Loaded mesh " << filename << std::endl;
     std::cout << "V : (" << V->rows() << ", " << V->cols() << ")" << std::endl;
     std::cout << "F : (" << F->rows() << ", " << F->cols() << ")" << std::endl;
     std::cout << "Faces : " << F->rows() << std::endl;
 
+    N_VERTICES = V->rows();
     // Compute the edges
     igl::edges(*F, *E);
     std::cout << "E : (" << E->rows() << ", " << E->cols() << ")" << std::endl;
@@ -104,36 +105,43 @@ void DiscreteShell::initializeFromFile(const std::string& filename) {
         E_length_rest(i) = (p2 - p1).norm();
     }
 
+    // ------ Artifical little change to the mesh -----------
+    V->row(42)  += Eigen::Vector3d(0.0, 0, 30);
+    V->row(43)  += Eigen::Vector3d(0.0, 0, 30);
+    V->row(0)   += Eigen::Vector3d(0.0, 0, 30);
+    V->row(1)   += Eigen::Vector3d(0.0, 0, 30);
+    V->row(2)   += Eigen::Vector3d(0.0, 0, 30);
+    // M.coeffRef(8, 8) = 1e50;
+    // ------------------------------------------------------
+
     // Set velocity to zero everywhere
     Velocity->resize(V->rows(), 3);
     Velocity->setZero();
 
-    // Itialize the solver
+    // Initialize the solver
     m_solver = new Solver(m_beta, m_gamma, m_dt, &M);
     m_solver->setDiscreteShell(this);
-
 }
-
 
 bool DiscreteShell::advanceOneStep(int step) {
     // Reset forces
     forces.setZero(V->rows(), 3);
     // Compute forces
-    addStrechingForcesTo(forces, V);
-    // addBendingForcesTo(forces, V, E);
+    // addStrechingForcesTo(forces, V);
+    addBendingForcesTo(forces, V, E);
 
     // Compute damping forces
     Eigen::MatrixX3d damping_forces = Eigen::MatrixX3d::Zero(V->rows(), 3);
     computeDampingForces(damping_forces);
-    forces += damping_forces;
-
-    // Open a file to log data (appending mode)
+    // forces += damping_forces;
+    // Add external forces (only gravity for now)
+    add_F_ext(forces);
 
     // Compute acceleration
     Eigen::MatrixXd acceleration = Eigen::MatrixXd::Zero(V->rows(), 3);
     for (int i = 0; i < Velocity->rows(); ++i) {
         double mass_i = M.coeff(i, i); // Mass for particle i
-        acceleration.row(i) = forces.row(i) / mass_i;
+         acceleration.row(i) = forces.row(i);// / mass_i;
 
         // If we are at vertex 0, log
         Eigen::Vector3d force = forces.row(i);
@@ -152,9 +160,7 @@ bool DiscreteShell::advanceOneStep(int step) {
                     << "\n";
         }
 #endif
-
     }
-    m_solver->solve(V, Velocity, &acceleration);
 
     // Newmark integration loop
     for (int i = 0; i < V->rows(); ++i) {
@@ -166,7 +172,10 @@ bool DiscreteShell::advanceOneStep(int step) {
         Velocity->row(i) += m_dt * ((1.0 - m_gamma) * acceleration.row(i) + m_gamma * acceleration.row(i));
     }
 
+    m_solver->solve(V, Velocity, &acceleration);
+
     // Update the deformed mesh
+    // TODO : useles
     deformedMesh.V = *V;
 
     return false; // Continue simulation
@@ -176,9 +185,9 @@ bool DiscreteShell::advanceOneStep(int step) {
 /**
  * Given the edges and vertices positions, adds the stretchings forces to the passed vector.
  */
-void DiscreteShell::addStrechingForcesTo(Eigen::MatrixX3d &_forces, const Eigen::MatrixXd *V_) {
+void DiscreteShell::addStrechingForcesTo(Eigen::MatrixXd &_forces, const Eigen::MatrixXd *V_) {
     // TODO : make this static or something
-    Eigen::MatrixX3d forces_2 = Eigen::MatrixX3d::Zero(V_->rows(), 3);
+    Eigen::MatrixXd forces_2 = Eigen::MatrixXd::Zero(V_->rows(), 3);
     // Iterate over each edges
     for (int i = 0; i < E->rows(); i++) {
         // Get the indices of the two vertices of the edge
@@ -190,13 +199,12 @@ void DiscreteShell::addStrechingForcesTo(Eigen::MatrixX3d &_forces, const Eigen:
         // Compute the stretching force
         double current_length = (p2 - p1).norm();
         double rest_length = E_length_rest(i);
-        double force_magnitude = k_membrane * (current_length - rest_length);
-        auto direction = (p2 - p1).normalized();
-        Eigen::Vector3d fi = force_magnitude * direction;
-        forces_2.row(v1) += fi;
-        forces_2.row(v2) -= fi;
+        double force_magnitude = STRETCHING_STIFFNESS * (current_length - rest_length);
+        Eigen::VectorXd direction = (p2 - p1).normalized();
+        Eigen::VectorXd fi = force_magnitude * direction;
+        _forces.row(v1) += fi;
+        _forces.row(v2) -= fi;
     }
-    _forces += forces_2;
 }
 
 
@@ -268,13 +276,12 @@ void DiscreteShell::addStretchingHessianTo(
 
 
 
-void DiscreteShell::addBendingForcesTo(Eigen::MatrixX3d &forces, const Eigen::MatrixXd *_V, const Eigen::MatrixXi *_E) {
-
+void DiscreteShell::addBendingForcesTo(Eigen::MatrixXd &forces, const Eigen::MatrixXd *_V, const Eigen::MatrixXi *_E) {
     // std::cout << "Computing bending forces" << std::endl;
     for (int i = 0; i < V_rest.rows(); i++) {
         // Add bending forces
         auto energy_f = [this](int i) -> var {
-            return BendingEnergy(i);
+            return BENDING_STIFFNESS * BendingEnergy(i);
             };
         
         // Derivative and forward pass of Bending energy function
@@ -297,14 +304,12 @@ var DiscreteShell::BendingEnergy(int i) {
     // DualVector stiffness_u, stiffness_d;
     DualVector heights, norms;
 
-    undeformedMesh.getDihedralAngles(i, angles_u); // don't need calculation for that
-
+    deformedMesh.getRestingDihedralAngles(i, angles_u); // don't need calculation for that
     deformedMesh.calculateDihedralAngles(i, angles_d);
     deformedMesh.computeAverageHeights(i, heights);
     deformedMesh.computeEdgeNorms(i, norms);
     //flexural energy per undirected edge
     DualVector flex = (((angles_u - angles_d).array().square() * norms.array()) / heights.array());
-    // if (i == 0) std::cout << "Flexural energy for vertex " << i << " : " << flex.sum() << std::endl;
     return flex.sum();
 }
 
@@ -349,6 +354,18 @@ void DiscreteShell::computeDampingForces(Eigen::MatrixX3d &damping_forces) {
 void DiscreteShell::compute_F_int(Eigen::MatrixX3d &_forces, const Eigen::MatrixXd *_V) const {
     // addStrechingForcesTo(_forces, _V, E);
     // addBendingForces(forces);
+}
+
+void DiscreteShell::add_F_ext(Eigen::MatrixXd &_forces) {
+    // Just gravity for now
+    // Substract gravity :
+    Eigen::RowVector3d gravity(0, -9.81, 0);
+    for (int i = 0; i < V->rows(); i++) {
+        // _forces.row(i).y() -= 9.81;
+    }
+    // Wind only on vertex 42
+    Eigen::RowVector3d wind(0, 0, 100  );
+    // _forces.row(42) += wind;
 }
 
 const Eigen::MatrixXd* DiscreteShell::getPositions() {

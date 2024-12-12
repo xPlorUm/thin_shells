@@ -17,7 +17,8 @@
 #include <string.h>
 std::string PATH = "../data/";
 //string file = "paper-plane-subd.off";
-std::string file = "twisted.off";
+// std::string file = "twisted.off";
+std::string file = "woody-hi.off";
 
 using namespace std;
 using namespace Eigen;
@@ -33,6 +34,7 @@ Eigen::MatrixXi F(0, 3);
 enum MouseMode {
     SELECT, TRANSLATE, ROTATE, NONE
 };
+
 
 
 //for selecting vertices
@@ -67,7 +69,6 @@ bool callback_key_down(Viewer& viewer, unsigned char key, int modifiers);
 
 bool load_mesh(string filename) {
     igl::read_triangle_mesh(std::move(filename), V, F);
-    std::cout << "v zero  : " << V.isZero() << std::endl;
     viewer.data().clear();
     viewer.data().set_mesh(V, F);
     viewer.core().align_camera_center(V);

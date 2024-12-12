@@ -1,10 +1,8 @@
 #include "Mesh.h"
+#include "utils.h"
 
-#include <igl/facet_adjacency_matrix.h>
 #include <igl/per_face_normals.h>
 #include <igl/edge_flaps.h>
-#include <igl/edges.h>
-
 
 Mesh::Mesh() {
 }
@@ -13,8 +11,9 @@ Mesh::Mesh() {
 Mesh::Mesh(const Eigen::MatrixXd& V_, const Eigen::MatrixXi& F_)
     : V(V_), F(F_), V_d(V_) {
     igl::edge_flaps(F, uE, EMAP, EF, EI); // Compute the edges and the edge-face incidence
-    calculateAllDihedralAngles(dihedralAngles);
 
+    // Precompute all the dihedral angles.
+    calculateAllDihedralAngles(restDihedralAngles);
 
     // Prepare the adjacency list
     VE = std::vector<std::vector<int>>(V.rows());
@@ -32,10 +31,9 @@ Mesh::Mesh(const Eigen::MatrixXd& V_, const Eigen::MatrixXi& F_)
 }
 
 //Vertex wise computation
-void Mesh::calculateDihedralAngles(int i, DualVector& angles) {
-
+void Mesh::calculateDihedralAngles(int vertex_i, DualVector& angles) {
     //  << "Calculating dihedral angles for vertex " << i << std::endl;
-    std::vector<int> incEdges = VE[i];
+    std::vector<int> incEdges = VE[vertex_i];
     angles.setZero(incEdges.size());
     //stiffness.setZero(incEdges.size());
     int ni = 0;
@@ -52,13 +50,17 @@ void Mesh::calculateDihedralAngles(int i, DualVector& angles) {
         // Clamp cos value not derivable at cos == 1.0 or -1.0f
         if (cos >= val(1.0f)) cos = 1.0f - Epsilon;
         if (cos <= val(-1.0f)) cos = -1.0f + Epsilon;
-        
+
+        // DEBUG TOOD : seems like the issue comes from when retrieving the angoe from
+        // the undeformed (base) mesh.
+        // Idea : ditch the undeformed and creaeta a new function
+        // get undeformed angle FOR THAT.
         angles(ni) = acos(cos);
 
         // Apply a threshold to determine if the edge is a crease
-        if (abs(angles(ni)) > plastic_deformation_threshold) { 
+        if (abs(angles(ni)) > plastic_deformation_threshold && false) {
             stiffness(ni) = 0.5;
-            dihedralAngles(edgeI) = double(angles[ni]);
+            restDihedralAngles(edgeI) = double(angles[ni]);
             // TODO: change the resting angle of the undeformed mesh
         }
         ni++;
@@ -67,12 +69,6 @@ void Mesh::calculateDihedralAngles(int i, DualVector& angles) {
     // if(i == 0) std::cout << "Dihedral angles for vertex " << i << " : " << angles.sum() << std::endl;
 }
 
-void Mesh::computeFaceNormal(int faceI, Dual3DVector& n) {
-    Dual3DVector v0 = V.row(F(faceI, 0));
-    Dual3DVector v1 = V.row(F(faceI, 1));
-    Dual3DVector v2 = V.row(F(faceI, 2));
-    n = (v1 - v0).cross(v2 - v0).normalized();
-}
 
 void Mesh::computeAverageHeights(int i, DualVector& heights) {
     // Initialize to the right size
@@ -133,91 +129,47 @@ void Mesh::computeEdgeNorms(int i, DualVector& norms) {
     }
 }
 
-
-//void Mesh::calculateAllDihedralAngles(DualVector& angles, DualVector& stiffness) {
 void Mesh::calculateAllDihedralAngles(Eigen::VectorXd& angles) {
     //// Initialize them to the right size
     angles.resize(uE.rows());
     stiffness.resize(uE.rows());
 
     igl::per_face_normals(V_d, F, FN_d); // Compute per face normals have to be normalized
+    Eigen::Vector3d n0 = Eigen::Vector3d::Zero();
+    Eigen::Vector3d n1 = Eigen::Vector3d::Zero();
     for (int i = 0; i < EF.rows(); i++) {
         if (EF(i, 1) == -1 || EF(i, 0) == -1) { //boundary edge
             angles(i) = 0.0f;
             continue;
         }
-        //Dual3DVector n0 = FN.row(EF(i, 0));
-        //Dual3DVector n1 = FN.row(EF(i, 1));        
-        //var cos = n0.dot(n1);
-        //if (cos >= val(1.0f)) cos = 1.0f - Epsilon;
-        //if (cos <= val(-1.0f)) cos = -1.0f + Epsilon;
-        //var angle = acos(cos);
-        //angles(i) = angle;
-
-        Eigen::Vector3d n0 = FN_d.row(EF(i, 0));
-        Eigen::Vector3d n1 = FN_d.row(EF(i, 1));
+        computeFaceNormal(EF(i, 0), n0);
+        computeFaceNormal(EF(i, 1), n1);
+        // What is that ?
         double cos = n0.dot(n1);
-        if (cos >= 1.0f) cos = 1.0f - 1e-4;
-        if (cos <= -1.0f) cos = -1.0f + 1e-4;
+        if (cos >= 1.0f) cos = 1.0f - Epsilon;
+        if (cos <= -1.0f) cos = -1.0f + Epsilon;
 
         double angle = acos(cos);
         angles(i) = angle;
-
     }
 }
 
 //void Mesh::getDihedralAngles(int i, DualVector& angles, DualVector& stiffness) {
-void Mesh::getDihedralAngles(int i, Eigen::VectorXd& angles) {
+/**
+ * Given an index, writes the dihedral angles and stiffness of the edges incident to the vertex i
+ */
+void Mesh::getRestingDihedralAngles(int i, Eigen::VectorXd& angles) {
     int nE = VE[i].size();
     angles.resize(nE);
-    stiffness.resize(nE);
+    // TODO : figure out why is it here ?
+    // stiffness.resize(nE);
+    // Essentially just gets all dihadral angles from each incident edges,
+    // and store them in angles.
     int ni = 0;
     for (int n : VE[i]) {
-        angles(ni) = dihedralAngles(n);
+        angles(ni) = restDihedralAngles(n);
         ni++;
     }
 }
-
-
-//void Mesh::computeAverageHeights(DualVector& heights) {
-//    // Initialize to the right size
-//    heights.resize(uE.rows());
-//
-//    for (int i = 0; i < EF.rows(); i++) {
-//        if (EF(i, 1) == -1 || EF(i, 0) == -1) { //boundary edge
-//            heights(i) = 0.0f;
-//            continue;
-//        }
-//        // Get the indices of the adjacent faces
-//        int face0 = EF(i, 0);
-//        int face1 = EF(i, 1);
-//
-//        // Get the coner point adjacent to the edge
-//        int corner0 = EI(i, 0);
-//        int corner1 = EI(i, 1);
-//
-//        var height0 = computeFaceHeight(F.row(face0), corner0);
-//        var height1 = computeFaceHeight(F.row(face1), corner1);
-//
-//        // Only compute a third of the average
-//        heights(i) = (height0 + height1) / 6.f;
-//    }
-//}
-
-
-//void Mesh::computeEdgeNorms(DualVector& norms) {
-//    for (int i = 0; i < uE.rows(); i++) {
-//        int v0 = uE(i, 0);
-//        int v1 = uE(i, 1);
-//
-//        Dual3DVector edge = V.row(v1) - V.row(v0);
-//
-//        norms(i) = edge.norm();
-//    }
-//}
-
-
-
-
 
 

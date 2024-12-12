@@ -31,7 +31,8 @@ public:
     Eigen::MatrixXd V_d;
     Eigen::MatrixXd FN_d;
     Eigen::VectorXd stiffness; // Stiffness of each edge (#uE, 1)
-    Eigen::VectorXd dihedralAngles;
+    // Resting angles of the mesh.
+    Eigen::VectorXd restDihedralAngles;
 
 
     //static
@@ -51,7 +52,7 @@ public:
     // Constructor to initialize the mesh with vertices, faces
     Mesh(const Eigen::MatrixXd& V_, const Eigen::MatrixXi& F_);
 
-    void calculateDihedralAngles(int i, DualVector& angles);
+    void calculateDihedralAngles(int vertex_i, DualVector& angles);
     void computeAverageHeights(int i, DualVector& heights);
     void computeEdgeNorms(int i, DualVector& norms);
 
@@ -60,20 +61,39 @@ public:
     //void getDihedralAngles(int i, DualVector& angles, DualVector& stiffness);
     void calculateAllDihedralAngles(Eigen::VectorXd& angles);
     // Returns all precomputed dihedral angles of the ith vertex to all incident edges
-    void getDihedralAngles(int i, Eigen::VectorXd& angles);
-
-
-    void calculateDihedralAngles(DualVector& angles);
-    // Computes and saves the third of the average heights of the unique mesh edges into a vector(#uE, 1)
-    void computeAverageHeights(DualVector& heights);
-    // Saves the norms of the undirected Edges of the mesh and saves them in a vector (#uE, 1)
-    void computeEdgeNorms(DualVector& norms);
-
+    void getRestingDihedralAngles(int i, Eigen::VectorXd& angles);
 private:
     // Computes the height of one face given the indec of the corner {0, 1, 2}
     var computeFaceHeight(const Eigen::RowVector3i& face, const int corner);
-    void computeFaceNormal(int faceI, Dual3DVector& n);
     static constexpr double plastic_deformation_threshold = PI / 4.0;
+
+// Templated computeFaceNormal function
+    template <typename VectorType>
+    void computeFaceNormal(int faceI, VectorType& n) const {
+        // Ensure that faceI is within bounds
+        if (faceI < 0 || faceI >= F.rows()) {
+            throw std::out_of_range("Face index out of range.");
+        }
+        // Extract the vertex indices for the face
+        int vi0 = F(faceI, 0);
+        int vi1 = F(faceI, 1);
+        int vi2 = F(faceI, 2);
+
+        // Ensure vertex indices are within bounds
+        if (vi0 < 0 || vi0 >= V.rows() ||
+            vi1 < 0 || vi1 >= V.rows() ||
+            vi2 < 0 || vi2 >= V.rows()) {
+            throw std::out_of_range("Vertex index out of range.");
+        }
+
+        // Extract vertex positions
+        VectorType v0 = V.row(vi0).template cast<typename VectorType::Scalar>();
+        VectorType v1 = V.row(vi1).template cast<typename VectorType::Scalar>();
+        VectorType v2 = V.row(vi2).template cast<typename VectorType::Scalar>();
+
+        // Compute the normal
+        n = (v1 - v0).cross(v2 - v0).normalized();
+    }
 
 };
 

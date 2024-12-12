@@ -24,9 +24,6 @@ public:
                 m_M_extended->coeffRef(3 * i + 2, 3 * j + 2) = M->coeff(i, j);
             }
         }
-        std::cout << m_M_extended->rows() << " " << m_M_extended->cols() << std::endl;
-        std::cout << "M shape" << std::endl;
-        std::cout << M->rows() << " " << M->cols() << std::endl;
     };
 
     void solve(Eigen::MatrixXd *Position_i, Eigen::MatrixXd *Velocity_i, Eigen::MatrixXd *Acceleration_i);

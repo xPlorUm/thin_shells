@@ -8,7 +8,10 @@
 #include <Eigen/Core>
 #include <iostream>
 
-void pretty_print_vector(const Eigen::VectorXd& v) {
+#define PRINT_SHAPE(matrix) std::cout << #matrix << " : " << matrix.rows() << " " << matrix.cols() << std::endl;
+#define CHECK_VECTOR_SIZE(vec, size) assert((vec).size() == (size))
+
+inline void pretty_print_vector(const Eigen::VectorXd& v) {
     std::cout << "Vector : " << std::endl;
     for (int i = 0; i < v.size(); i++) {
         std::cout << v(i) << " ";
@@ -16,7 +19,7 @@ void pretty_print_vector(const Eigen::VectorXd& v) {
     std::cout << std::endl;
 }
 
-void pretty_print_vectorX3d(const Eigen::MatrixX3d& v) {
+inline void pretty_print_vectorX3d(const Eigen::MatrixX3d& v) {
     std::cout << "Vector : " << std::endl;
     for (int i = 0; i < v.rows(); i++) {
         std::cout << v(i, 0) << " " << v(i, 1) << " " << v(i, 2) << std::endl;
@@ -25,7 +28,7 @@ void pretty_print_vectorX3d(const Eigen::MatrixX3d& v) {
 }
 
 
-void extendMatrix(const Eigen::SparseMatrix<double> *M, Eigen::SparseMatrix<double> &M_extended) {
+inline void extendMatrix(const Eigen::SparseMatrix<double> *M, Eigen::SparseMatrix<double> &M_extended) {
     for (int i = 0; i < M->rows(); i++) {
         for (int j = 0; j < M->cols(); j++) {
             M_extended.coeffRef(3 * i, 3 * j) = M->coeff(i, j);
@@ -33,6 +36,21 @@ void extendMatrix(const Eigen::SparseMatrix<double> *M, Eigen::SparseMatrix<doub
             M_extended.coeffRef(3 * i + 2, 3 * j + 2) = M->coeff(i, j);
         }
     }
+}
+
+/**
+ * Returns a flattened version of the matrix, where each row is concatenated to the previous one.
+ *
+ * Eg :
+ * 1 2 3
+ * 4 5 6
+ * 7 8 9
+ * Will be
+ * 1 2 3 4 5 6 7 8 9
+ */
+inline Eigen::VectorXd flatten_matrix(Eigen::MatrixXd &m) {
+    Eigen::MatrixXd m_transposed = m.transpose();
+    return Eigen::Map<Eigen::VectorXd>(m_transposed.data(), m_transposed.cols() * m_transposed.rows());
 }
 
 #endif //THINSHELLS_COMMON_H

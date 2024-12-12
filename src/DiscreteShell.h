@@ -13,12 +13,12 @@ class FileDebugger {
 private :
     std::ofstream dataFile;
 public:
-    FileDebugger(const std::string& filename) {
+    FileDebugger(const std::string &filename) {
         dataFile.open(filename);
     }
 
     // Get the stream so one can write on it
-    std::ofstream& getStream() {
+    std::ofstream &getStream() {
         return dataFile;
     }
 
@@ -36,10 +36,13 @@ class DiscreteShell {
 public:
     // Constructor
     DiscreteShell();
+
     // Destructor
     ~DiscreteShell();
 
-    void initializeFromFile(const std::string& filename);
+    int N_VERTICES;
+
+    void initializeFromFile(const std::string &filename);
 
     // Advance one time step
     bool advanceOneStep(int step);
@@ -53,21 +56,35 @@ public:
         std::cout << "Position : " << V->row(vertex_index) << std::endl;
         // Forces
         std::cout << "Forces : " << forces.row(vertex_index) << std::endl;
+
+        std::cout << "Bending Energy : " << BendingEnergy(vertex_index) << std::endl;
+
+        // Compute the bending forces
+        Eigen::MatrixXd bending_forces = Eigen::MatrixX3d::Zero(V->rows(), 3);
+        addBendingForcesTo(bending_forces, V, E);
+        std::cout << "Bending Forces : " << bending_forces.row(vertex_index) << std::endl;
+
+        // Compute stretching forces
+        Eigen::MatrixXd stretching_forces = Eigen::MatrixX3d::Zero(V->rows(), 3);
+        // addStrechingForcesTo(stretching_forces, V);
+        std::cout << "Stretching Forces : " << stretching_forces.row(vertex_index) << std::endl;
     }
 
     // Returns the positions to get drawn
     // TODO : this should be a pointer
-    const Eigen::MatrixXd* getPositions();
-    const Eigen::MatrixXi* getFaces();
+    const Eigen::MatrixXd *getPositions();
+
+    const Eigen::MatrixXi *getFaces();
 
     void compute_F_int(Eigen::MatrixX3d &_forces, const Eigen::MatrixXd *_V) const;
 
-    void addStrechingForcesTo(Eigen::MatrixX3d &_forces, const Eigen::MatrixXd *_V);
+    void addStrechingForcesTo(Eigen::MatrixXd &_forces, const Eigen::MatrixXd *V_);
 
-    void addBendingForcesTo(Eigen::MatrixX3d &forces, const Eigen::MatrixXd *_V, const Eigen::MatrixXi *_E);
+    void addBendingForcesTo(Eigen::MatrixXd &forces, const Eigen::MatrixXd *_V, const Eigen::MatrixXi *_E);
 
     void addStretchingHessianTo(std::vector<Eigen::Triplet<double>> &triplets, const Eigen::MatrixXd *V_);
 
+     void add_F_ext(Eigen::MatrixXd &_forces) ;
 private:
 
     // Physical properties
@@ -84,11 +101,12 @@ private:
     Eigen::MatrixXd V_rest; // Undeformed mesh
     Eigen::MatrixXd *Velocity; // Velocity of the shell (point-wise)
     Eigen::MatrixXi *E; // Edges of the shell
-    Eigen::VectorXd E_length_rest ; // Rest length of edges
+    Eigen::VectorXd E_length_rest; // Rest length of edges
     Eigen::SparseMatrix<double> M; // Massmatrix
-    Eigen::MatrixX3d forces; // Forces applied point-wise.
+    Eigen::SparseMatrix<double> M_i;
+    Eigen::MatrixXd forces; // Forces applied point-wise.
     Eigen::MatrixX3d bending_forces; // Bending forces applied point-wise.
-    int k_membrane = 1000; // Membrane stiffness
+    int k_membrane = 10; // Membrane stiffness
     double stiffness_damping = 0.5; // Stiffness damping coefficient
     double mass_damping = 0.5; // Mass damping coefficient
 
@@ -97,13 +115,12 @@ private:
     double m_beta = 0.25; // Newmark parameter (default: 0.25 for implicit integration)
     double m_gamma = 0.5; // Newmark parameter (default: 0.5 for implicit integration)
 
-    void computeDampingForces(Eigen::MatrixX3d& damping_forces); // Compute damping forces
+    void computeDampingForces(Eigen::MatrixX3d &damping_forces); // Compute damping forces
     var BendingEnergy(int i);
 
     FileDebugger fileDebugger = FileDebugger("vertex_data.csv");
 
-
-    Solver* m_solver;
+    Solver *m_solver;
 
 };
 

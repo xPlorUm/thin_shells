@@ -6,32 +6,56 @@
 #include <iostream>
 #include "Solver.h"
 #include "DiscreteShell.h"
+#include "common.h"
+
+// TODO : move that to a common header
+#define PRINT_SHAPE(matrix) std::cout << #matrix << " : " << matrix.rows() << " " << matrix.cols() << std::endl;
 
 void Solver::solve(Eigen::MatrixXd *Position_i, Eigen::MatrixXd *Velocity_i, Eigen::MatrixXd *Acceleration_i) {
     // TODO : pass those as constants, or handle better the flattened versions
     Eigen::MatrixXd C = 0.5 * Eigen::MatrixXd::Identity(Position_i->rows() * 3, Position_i->rows() * 3);
-    auto R = [this, C](Eigen::VectorXd &Position, Eigen::VectorXd &Velocity, Eigen::VectorXd &Acceleration) {
-        Eigen::VectorXd residual = Eigen::VectorXd::Zero(Position.rows());
-        // reference : eq (4) from Chang paper
-        residual += (*m_M_extended / (m_beta * (m_dt * m_dt))) *
-                    (Position + m_dt * Velocity + (0.5 - m_beta) * m_dt * m_dt * Acceleration);
-        residual += -C * (Velocity + (1 - m_gamma) * (m_dt) * Acceleration);
-        residual += C * (m_gamma / (m_beta * m_dt)) * (Position + m_dt * Velocity);
-        residual += (0.5 - m_beta) * (m_dt * m_dt) * Acceleration;
+    auto R = [this](
+                    const Eigen::VectorXd &u_new,
+                    const Eigen::VectorXd &u_n,
+                    const Eigen::VectorXd &v_n,
+                    const Eigen::VectorXd &a_n,
+                    const Eigen::VectorXd &f_ext_flatten) -> Eigen::VectorXd {
+        // Step 1: Compute acceleration at n+1 using Newmark's formula
+        // a_new = \ddot{x}_{i + 1}
+        Eigen::VectorXd a_new =
+                (u_new - u_n - m_dt * v_n - (m_dt * m_dt) * (0.5 - m_beta) * a_n) / (m_beta * m_dt * m_dt);
+        // Step 2: Compute velocity at n+1 using Newmark's formula
+        Eigen::VectorXd v_new = v_n + m_dt * ((1.0 - m_gamma) * a_n + m_gamma * a_new);
+        // Step 3: Map u_new to Position matrix for force computation
+        // Step 4: Compute internal forces based on the updated positions
+        Eigen::MatrixXd f_int_matrix = Eigen::MatrixX3d::Zero(m_discreteshell->N_VERTICES, 3);
+        // Convert back u_n to Eigen::MatrixXd and takes its pointer
+        // TODO : is that correct ? Is the vector -> Matrix conversion correct ? No lmao
+        Eigen::MatrixXd u_n_matrix = Eigen::Map<const Eigen::MatrixXd>(u_n.data(), m_discreteshell->N_VERTICES, 3);
+        // m_discreteshell->addStrechingForcesTo(f_int_matrix, &u_n_matrix); // Use updated positions
+        // E IS NOT USED !!!
+        m_discreteshell->addBendingForcesTo(f_int_matrix, &u_n_matrix, m_discreteshell->getFaces());
+        // Flatten that shit
+        Eigen::VectorXd f_int = flatten_matrix(f_int_matrix); // Eigen::Map<const Eigen::VectorXd>(f_int_matrix.data(), f_int_matrix.rows() * 3);
+        // Step 5: Compute residual: R = M * a_new + C * v_new + f_int - f_ext
+        // As of now, damping matrix is a simple identity matrix SET TO ZERO
+        // TODO : don't forget the mass !
+        Eigen::VectorXd residual = a_n + f_int - f_ext_flatten;
         return residual;
     };
 
     // Create new vectors with flattened values, copied
-    Eigen::VectorXd Position_flatten = Eigen::Map<const Eigen::VectorXd>(Position_i->data(), Position_i->rows() * 3);
-    Eigen::VectorXd Velocity_flatten = Eigen::Map<const Eigen::VectorXd>(Velocity_i->data(), Velocity_i->rows() * 3);
-    Eigen::VectorXd Acceleration_flatten = Eigen::Map<const Eigen::VectorXd>(Acceleration_i->data(), Acceleration_i->rows() * 3);
-    Eigen::VectorXd residual = R(Position_flatten, Velocity_flatten, Acceleration_flatten);
-    // Need to add forces
-    Eigen::MatrixX3d f_i = Eigen::MatrixX3d::Zero(Position_i->rows(), 3);
-    // SEGFAULT HERE
-    m_discreteshell->addStrechingForcesTo(f_i, Position_i);
-    Eigen::VectorXd f_i_flatten = Eigen::Map<const Eigen::VectorXd>(f_i.data(), f_i.rows() * 3);
-    residual += f_i_flatten;
+    Eigen::VectorXd Position_flatten = flatten_matrix(*Position_i);
+    Eigen::VectorXd Velocity_flatten = flatten_matrix(*Velocity_i);// Eigen::Map<const Eigen::VectorXd>(Velocity_i->data(), Velocity_i->rows() * 3);
+    Eigen::VectorXd Acceleration_flatten = flatten_matrix(*Acceleration_i);// Eigen::Map<const Eigen::VectorXd>(Acceleration_i->data(), Acceleration_i->rows() * 3);
+    Eigen::VectorXd u_new = Position_flatten;
+
+    Eigen::MatrixXd f_ext_matrix = Eigen::MatrixXd::Zero(m_discreteshell->N_VERTICES, 3);
+    m_discreteshell->add_F_ext(f_ext_matrix);
+    Eigen::VectorXd f_ext_flatten = flatten_matrix(f_ext_matrix);
+    Eigen::VectorXd residual = R(u_new, Position_flatten, Velocity_flatten, Acceleration_flatten, f_ext_flatten);
+    std::cout << residual.norm() << std::endl;
+    std::cout << "-----------------------------" << std::endl;
 
     // Compute System matrix of the system
     auto S = [this, C](Eigen::VectorXd &Position, Eigen::VectorXd &Velocity, Eigen::VectorXd &Acceleration) {
@@ -39,6 +63,7 @@ void Solver::solve(Eigen::MatrixXd *Position_i, Eigen::MatrixXd *Velocity_i, Eig
         K = (*m_M_extended / (m_beta * (m_dt * m_dt))) + C * (m_gamma / (m_beta * m_dt));
         return K;
     };
+    // Reference : https://chatgpt.com/c/67585038-9a24-800f-a9cd-a44d464ad723
 
     std::vector<Eigen::Triplet<double>> triplets = std::vector<Eigen::Triplet<double>>();
     Eigen::SparseMatrix<double> systemMatrix = Eigen::SparseMatrix<double>(Position_i->rows() * 3, Position_i->rows() * 3);
@@ -47,7 +72,7 @@ void Solver::solve(Eigen::MatrixXd *Position_i, Eigen::MatrixXd *Velocity_i, Eig
     systemMatrix += S(Position_flatten, Velocity_flatten, Acceleration_flatten);
     // K delta_x = -R : solving that system
     Eigen::VectorXd delta_x = Eigen::VectorXd::Zero(Position_i->rows() * 3);
-    linearSolve(systemMatrix, -residual, delta_x);
+    linearSolve(systemMatrix, residual, delta_x);
 }
 
 
