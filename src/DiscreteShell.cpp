@@ -202,9 +202,10 @@ void DiscreteShell::computeBendingForces(Eigen::MatrixX3d& bending_forces) {
         return deformedMesh.V.row(vertex_idx);
         });
 
+    auto [f, g] = func.eval_with_gradient(x);
     // We get the output force f, the gradient g and the Hessian H
     // With the Hessian H it is way slower now
-    auto [f, g, H] = func.eval_with_hessian_proj(x);
+    //auto [f, g, H] = func.eval_with_hessian_proj(x);
 
     for (int vertex_idx = 0; vertex_idx < g.size() / 3; vertex_idx++) {
         bending_forces.row(vertex_idx) += g.segment<3>(3 * vertex_idx);
