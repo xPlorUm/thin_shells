@@ -57,13 +57,10 @@ public:
         // Forces
         std::cout << "Forces : " << forces.row(vertex_index) << std::endl;
 
-        std::cout << "Bending Energy : " << BendingEnergy(vertex_index) << std::endl;
-
         // Compute the bending forces
         Eigen::MatrixXd bending_forces = Eigen::MatrixX3d::Zero(V->rows(), 3);
-        addBendingForcesTo(bending_forces, V, E);
+        addBendingForcesTo(bending_forces, V);
         std::cout << "Bending Forces : " << bending_forces.row(vertex_index) << std::endl;
-
         // Compute stretching forces
         Eigen::MatrixXd stretching_forces = Eigen::MatrixX3d::Zero(V->rows(), 3);
         // addStrechingForcesTo(stretching_forces, V);
@@ -80,11 +77,15 @@ public:
 
     void addStrechingForcesTo(Eigen::MatrixXd &_forces, const Eigen::MatrixXd *V_);
 
-    void addBendingForcesTo(Eigen::MatrixXd &forces, const Eigen::MatrixXd *_V, const Eigen::MatrixXi *_E);
-
     void addStretchingHessianTo(std::vector<Eigen::Triplet<double>> &triplets, const Eigen::MatrixXd *V_);
 
      void add_F_ext(Eigen::MatrixXd &_forces) ;
+
+    void addBendingForcesTo(Eigen::MatrixXd &bending_forces, const Eigen::MatrixXd *V);
+
+    void
+    addBendingForcesAndHessianTo(Eigen::MatrixXd &bending_forces, Eigen::SparseMatrix<double> &H,
+                                 const Eigen::MatrixXd *V);
 private:
 
     // Physical properties
@@ -116,12 +117,13 @@ private:
     double m_gamma = 0.5; // Newmark parameter (default: 0.5 for implicit integration)
 
     void computeDampingForces(Eigen::MatrixX3d &damping_forces); // Compute damping forces
-    var BendingEnergy(int i);
 
     FileDebugger fileDebugger = FileDebugger("vertex_data.csv");
 
     Solver *m_solver;
 
+    void addBendingForcesAndHessianTo_internal(Eigen::MatrixXd &bending_forces, Eigen::SparseMatrix<double> &H,
+                                               const Eigen::MatrixXd *V, bool computeHessian = false);
 };
 
 

@@ -14,6 +14,11 @@ Maybe we should change the function names since they're currently the same as th
 #include <fstream>
 #include <iostream>
 
+#include <TinyAD/ScalarFunction.hh>
+#include <TinyAD/Utils/NewtonDirection.hh>
+#include <TinyAD/Utils/NewtonDecrement.hh>
+#include <TinyAD/Utils/LineSearch.hh>
+
 // Define a macro to enable/disable debug information
 // #define DEBUG_VERTEX 0
 
@@ -59,10 +64,7 @@ void DiscreteShell::initializeFromFile(const std::string& filename) {
     Eigen::VectorXi J; // Output mapping from F to simplified faces
 
     // Specify the target number of faces
-    int target_faces = 100;
-
-    igl::decimate(*V, *F, target_faces, *V, *F, J);
-
+    igl::decimate(*V, *F, N_FACES_MESH, *V, *F, J);
     V_rest = Eigen::MatrixXd(*V);
     deformedMesh = Mesh(V_rest, *F);
 
@@ -77,7 +79,7 @@ void DiscreteShell::initializeFromFile(const std::string& filename) {
 
     // Set massmatrix
     igl::massmatrix(V_rest, *F, igl::MASSMATRIX_TYPE_VORONOI, M);
-    // set M as identy for now
+    // set M as identy for now TODO : change that !
     M.setIdentity();
     // Set up the inverse of M
     // to avoid instability
@@ -129,12 +131,13 @@ bool DiscreteShell::advanceOneStep(int step) {
     // Reset forces
     forces.setZero(V->rows(), 3);
     // Compute forces
-    addStrechingForcesTo(forces, V);
-    addBendingForcesTo(forces, V, E);
+    // addStrechingForcesTo(forces, V);
+    addBendingForcesTo(forces, V);
     // Compute damping forces
     Eigen::MatrixX3d damping_forces = Eigen::MatrixX3d::Zero(V->rows(), 3);
     computeDampingForces(damping_forces);
     // forces += damping_forces;
+
     // Add external forces (only gravity for now)
     add_F_ext(forces);
 
@@ -143,7 +146,6 @@ bool DiscreteShell::advanceOneStep(int step) {
     for (int i = 0; i < Velocity->rows(); ++i) {
         double mass_i = M.coeff(i, i); // Mass for particle i
         acceleration.row(i) = forces.row(i);// / mass_i;
-
         Eigen::Vector3d force = forces.row(i);
         Eigen::Vector3d velocity = Velocity->row(i);
 
@@ -167,25 +169,12 @@ bool DiscreteShell::advanceOneStep(int step) {
     Eigen::MatrixXd a_new =
             (new_position - *V - m_dt * *Velocity - (m_dt * m_dt) * (0.5 - m_beta) * acceleration) / (m_beta * m_dt * m_dt);
     Eigen::MatrixXd v_new = *Velocity + m_dt * ((1.0 - m_gamma) * acceleration + m_gamma * a_new);
+
     *V = new_position;
     *Velocity = v_new;
     acceleration = a_new;
 
-/*
-    // Newmark integration loop
-    for (int i = 0; i < V->rows(); ++i) {
-        // Update position
-        V->row(i) += m_dt * Velocity->row(i) +
-                     m_dt * m_dt * ((1.0 - m_beta) * acceleration.row(i) + m_beta * acceleration.row(i));
-
-        // Update velocity
-        Velocity->row(i) += m_dt * ((1.0 - m_gamma) * acceleration.row(i) + m_gamma * acceleration.row(i));
-    }
-*/
-
-
     // Update the deformed mesh
-    // TODO : useless
     deformedMesh.V = *V;
 
     return false; // Continue simulation
@@ -286,43 +275,6 @@ void DiscreteShell::addStretchingHessianTo(
 
 
 
-void DiscreteShell::addBendingForcesTo(Eigen::MatrixXd &forces, const Eigen::MatrixXd *_V, const Eigen::MatrixXi *_E) {
-    // std::cout << "Computing bending forces" << std::endl;
-    for (int i = 0; i < V_rest.rows(); i++) {
-        // Add bending forces
-        auto energy_f = [this](int i) -> var {
-            return BENDING_STIFFNESS * BendingEnergy(i);
-            };
-        
-        // Derivative and forward pass of Bending energy function
-        // Shape of derivative is (#V, 3)
-        var energy = energy_f(i); // forward
-        DualVector x = deformedMesh.V.row(i);
-        auto grad = gradient(energy, x);
-        forces.row(i) = -Eigen::Map<Eigen::Vector3d>(grad.data());
-    }
-}
-
-/**
- * Calculates the bending energy for vertex i
- */
-var DiscreteShell::BendingEnergy(int i) {
-
-    // std::cout << "Calculating bending energy for vertex " << i << std::endl;
-    DualVector angles_d; 
-    Eigen::VectorXd angles_u;
-    // DualVector stiffness_u, stiffness_d;
-    DualVector heights, norms;
-
-    deformedMesh.getRestingDihedralAngles(i, angles_u); // don't need calculation for that
-    deformedMesh.calculateDihedralAngles(i, angles_d);
-    deformedMesh.computeAverageHeights(i, heights);
-    deformedMesh.computeEdgeNorms(i, norms);
-    //flexural energy per undirected edge
-    DualVector flex = (((angles_u - angles_d).array().square() * norms.array()) / heights.array());
-    return flex.sum();
-}
-
 void DiscreteShell::computeDampingForces(Eigen::MatrixX3d &damping_forces) {
     // Rayleigh type per-edge damping
 
@@ -355,13 +307,79 @@ void DiscreteShell::computeDampingForces(Eigen::MatrixX3d &damping_forces) {
     damping_forces += -1 * mass_damping * M * (*Velocity);
 }
 
-/**
- * Given a vertice configuration, computes the internal forces.
- */
-void DiscreteShell::compute_F_int(Eigen::MatrixX3d &_forces, const Eigen::MatrixXd *_V) const {
-    // addStrechingForcesTo(_forces, _V, E);
-    // addBendingForces(forces);
+
+
+void DiscreteShell::addBendingForcesAndHessianTo_internal(Eigen::MatrixXd &bending_forces, Eigen::SparseMatrix<double> &H,
+                                                          const Eigen::MatrixXd *V, bool computeHessian) {
+    //3 variables per vertex. Objective per edge, using 3 vertices each :
+    auto func = TinyAD::scalar_function<3>(TinyAD::range(deformedMesh.V.rows()));
+    func.add_elements<2>(TinyAD::range(deformedMesh.uE.rows()), [&](auto &element) ->
+    TINYAD_SCALAR_TYPE(element)
+    {
+        using T =
+        TINYAD_SCALAR_TYPE(element);
+
+        // Variables associated with the edge's vertices
+        Eigen::Index edge_idx = element.handle;
+        Eigen::RowVector3<T> v0 = element.variables(deformedMesh.uE(edge_idx, 0));
+        Eigen::RowVector3<T> v1 = element.variables(deformedMesh.uE(edge_idx, 1));
+        // Compute dihedral angle, height, and norm
+        double angle_u = deformedMesh.getDihedralAngles(edge_idx);
+        T angle_d = deformedMesh.computeDihedralAngle(v0, v1, edge_idx);
+        angle_d = deformedMesh.computeDihedralAngle(v0, v1, edge_idx);
+        T height = deformedMesh.computeHeight(v0, v1, edge_idx);
+        T norm = (v1 - v0).norm();
+        double stiffness = 1.0f;
+        // Edge Case
+        if (height <= Epsilon)
+            return (T) 0.0;
+        // Compute bending energy for this edge
+        T bending_energy = ((angle_u - angle_d) * (angle_u - angle_d) * norm * stiffness) / height;
+        return bending_energy;
+    });
+
+
+    Eigen::VectorXd x = func.x_from_data([&](int vertex_idx) -> Eigen::VectorXd {
+        return deformedMesh.V.row(vertex_idx);
+    });
+
+
+    double f;                          // Assuming f is a double
+    Eigen::VectorXd g;                 // Assuming g is an Eigen vector
+    if (computeHessian) {
+        // Structured binding to unpack the tuple
+        auto [f_, g_, H_t] = func.eval_with_hessian_proj(x);
+        f = f_;
+        g = g_;
+        H = H_t;
+    }
+    else {
+        // Structured binding for the gradient-only case
+        auto [f_, g_] = func.eval_with_gradient(x);
+        // Assign to the pre-declared variables
+        f = f_;
+        g = g_;
+    }
+    // We get the output force f, the gradient g and the Hessian H
+    // With the Hessian H it is way slower now
+    //auto [f, g, H] = func.eval_with_hessian_proj(x);
+    for (int vertex_idx = 0; vertex_idx < g.size() / 3; vertex_idx++) {
+        bending_forces.row(vertex_idx) += g.segment<3>(3 * vertex_idx);
+    }
 }
+
+void DiscreteShell::addBendingForcesTo(Eigen::MatrixXd &bending_forces, const Eigen::MatrixXd *V) {
+    // Dummy parameter
+    Eigen::SparseMatrix<double> t = Eigen::SparseMatrix<double>(V->rows() * 3, V->rows() * 3);
+    addBendingForcesAndHessianTo_internal(bending_forces, t, V, false);
+}
+
+void DiscreteShell::addBendingForcesAndHessianTo(Eigen::MatrixXd &bending_forces,
+                                                          Eigen::SparseMatrix<double> &H, const Eigen::MatrixXd *V) {
+    addBendingForcesAndHessianTo_internal(bending_forces, H, V, true);
+}
+
+
 
 void DiscreteShell::add_F_ext(Eigen::MatrixXd &_forces) {
     // Just gravity for now
@@ -382,5 +400,6 @@ const Eigen::MatrixXd* DiscreteShell::getPositions() {
 const Eigen::MatrixXi* DiscreteShell::getFaces() {
     return F;
 }
+
 
 

@@ -11,6 +11,7 @@ FetchContent_Declare(
     GIT_TAG v2.4.0
 )
 FetchContent_MakeAvailable(libigl)
+FetchContent_MakeAvailable(eigen)
 igl_include(glfw)
 igl_include(imgui)
 
