@@ -42,10 +42,6 @@ bool Solver::solve(Eigen::MatrixXd &Position_solution, Eigen::MatrixXd *Velocity
         m_discreteshell->addBendingForcesAndHessianTo(f_int_matrix, HessianBending, &u_n_matrix);
         // Flatten that shit
         Eigen::VectorXd f_int = flatten_matrix(f_int_matrix);
-        std::cout << "Forces int " << std::endl;
-        std::cout << f_int.transpose() << std::endl;
-        std::cout << "a_new int " << std::endl;
-        std::cout << a_new.transpose() << std::endl;
         // Step 5: Compute residual: R = M * a_new + C * v_new + f_int - f_ext
         // As of now, damping matrix is a simple identity matrix SET TO ZERO
         // TODO : don't forget the mass !
