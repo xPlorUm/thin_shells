@@ -14,15 +14,8 @@ Mesh::Mesh() {
 Mesh::Mesh(const Eigen::MatrixXd& V_, const Eigen::MatrixXi& F_)
     : V(V_), F(F_) {
     igl::edge_flaps(F, uE, EMAP, EF, EI); // Compute the edges and the edge-face incidence
-
-    // At the beginning of the simulation we have a already twisted sheet
-    // Because of that and that we only make simulations of paper we simply set the dihedralAngles to 0
-    // Because all normals are collinear to each other in resting shape
     
     calculateAllDihedralAngles(dihedralAngles);
-    dihedralAngles = Eigen::VectorXd::Zero(uE.rows());
-
-
 
     // set stiffness to 1 for all edges
     stiffness = Eigen::VectorXd(uE.rows());
@@ -35,14 +28,6 @@ void Mesh::calculateAllDihedralAngles(Eigen::VectorXd& angles) {
     angles.resize(uE.rows());
 
     igl::per_face_normals(V, F, FN); // Compute per face normals have to be normalized
-    Eigen::RowVector3d upward(0, 0, 1);
-
-    // Iterate over each normal and flip if it points downward
-    for (int i = 0; i < FN.rows(); ++i) {
-        if (FN.row(i).dot(upward) < 0) {
-            FN.row(i) = -FN.row(i);
-        }
-    }
 
 
     for (int i = 0; i < EF.rows(); i++) {
@@ -56,13 +41,14 @@ void Mesh::calculateAllDihedralAngles(Eigen::VectorXd& angles) {
         double cos = n0.dot(n1);
         if (cos >= 1.0f) cos = 1.0f - Epsilon;
         if (cos <= -1.0f) cos = -1.0f + Epsilon;
-
         double angle = acos(cos);
         angles(i) = angle;
-
     }
+}
 
 
+double Mesh::getDihedralAngles(int idx) {
+    return dihedralAngles[idx];
 }
 
 

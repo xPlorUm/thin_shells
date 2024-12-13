@@ -42,11 +42,9 @@ private:
     // Physical properties
     double dt; // Time step
     double simulation_duration; // Total simulation duration
-    // double bending_stiffness; // Stiffness for bending energy
 
     // State variables
     Mesh deformedMesh;
-    Mesh undeformedMesh;
 
     Eigen::MatrixXi *F; // Faces of the shell
     Eigen::MatrixXd *V; // Current mesh
@@ -58,11 +56,6 @@ private:
     Eigen::MatrixX3d forces; // Forces applied point-wise.
     Eigen::MatrixX3d bending_forces; // Bending forces applied point-wise.
 
-    // Helper function to build system matrix
-    //void buildSystemMatrix(Eigen::SparseMatrix<double>& K);
-    // Time integration (Newmark scheme)
-    //void updateDynamicStates();
-    //bool linearSolve(Eigen::SparseMatrix<double>& K, const Eigen::VectorXd& residual, Eigen::VectorXd& du);
 
     // Newmark-specific parameters
     double beta; // Newmark parameter (default: 0.25 for implicit integration)

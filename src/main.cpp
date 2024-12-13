@@ -150,18 +150,6 @@ bool callback_pre_draw(Viewer& viewer) {
     auto V = ds.getPositions();
     auto F = ds.getFaces();
     viewer.data().set_mesh(*V, *F);
-    //Eigen::MatrixXd FN = ds.getNormals();
-    ////Compute centroids of each face
-    //Eigen::MatrixXd centroids(F->rows(), 3);
-    //for (int i = 0; i < F->rows(); ++i) {
-    //    centroids.row(i) = ((*V).row((*F)(i, 0)) + (*V).row((*F)(i, 1)) + (*V).row((*F)(i, 2))) / 3.0;
-    //}
-    //Add edges for visualizing normals
-    //viewer.data().add_edges(
-    //    centroids,                              // Start points: face centroids
-    //    centroids + (FN * 0.5),                // End points: normals scaled by 0.05
-    //    Eigen::RowVector3d(1, 0, 0)             // Color: Red
-    //);
 
 
     return false;

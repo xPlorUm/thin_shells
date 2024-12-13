@@ -46,6 +46,9 @@ public:
     // Computes and saves the dihedral angles of the current mesh (#uE, 1) and also the Stiffness Matrix (#uE, 1)
     void calculateAllDihedralAngles(Eigen::VectorXd& angles);
 
+    // Get the precomputed dihedral angles of the edge at idx
+    double getDihedralAngles(int idx);
+
 
     // Computes the height of the given 2 vertices and the index of the undirected edge
     template <typename Scalar>
@@ -61,8 +64,8 @@ public:
         // Get the coner point adjacent to the edge
         int corner0I = EI(e_idx, 0);
 
-        Eigen::RowVector3d corner0 = V.row(F(face0, EI(e_idx, 0)));
-        Eigen::RowVector3d corner1 = V.row(F(face1, EI(e_idx, 1)));
+        Eigen::Matrix<Scalar, 1, 3> corner0 = V.row(F(face0, EI(e_idx, 0))).template cast<Scalar>();
+        Eigen::Matrix<Scalar, 1, 3> corner1 = V.row(F(face1, EI(e_idx, 1))).template cast<Scalar>();
 
         Scalar height0 = computeFaceHeight(v0, v1, corner0);
         Scalar height1 = computeFaceHeight(v0, v1, corner1);
@@ -83,69 +86,50 @@ public:
         // Get the indices of the adjacent faces
         int face0 = EF(e_idx, 0);
         int face1 = EF(e_idx, 1);
+        Eigen::Matrix<Scalar, 1, 3> n0, n1;
 
-        // Get the coner point adjacent to the edge
-        Eigen::RowVector3d corner0 = V.row(F(face0, EI(e_idx, 0)));
-        Eigen::RowVector3d corner1 = V.row(F(face1, EI(e_idx, 1)));
 
         // Check that the orientation of the normals are the same
-        int c0_f0idx = EI(e_idx, 0);
-        int v0_f0idx = (c0_f0idx + 1) % 3;
-        int v0_i = uE(e_idx, 0);
+        int v0idx = uE(e_idx, 0);
+        int v1idx = uE(e_idx, 1);
 
-        Eigen::Matrix<Scalar, 1, 3> n0, n1;
-        // Face0
-        if (F(face0, v0_f0idx) == v0_i) { // Face0 correct
+
+        // Get the coner point adjacent to the edge
+        Eigen::Matrix<Scalar, 1, 3> corner0 = V.row(F(face0, EI(e_idx, 0))).template cast<Scalar>();
+        Eigen::Matrix<Scalar, 1, 3> corner1 = V.row(F(face1, EI(e_idx, 1))).template cast<Scalar>();
+
+        if (F(face0, (EI(e_idx, 0) + 1) % 3) == v0idx) {
             computeNormal(v0, v1, corner0, n0);
+            computeNormal(v1, v0, corner1, n1);
         }
         else {
             computeNormal(v1, v0, corner0, n0);
-        }
-
-        //TODO compare n0 with normal at FN.row(face0) and change direction if 
-        // angle between n0 and precomputed normal is larger than 90 Degree
-        //Eigen::RowVector3d precomputed_n0 = FN.row(face0);
-        //if (n0.dot(precomputed_n0) < 0) {
-        //    n0 = -n0; // Flip n0 to match the hemisphere of precomputed_n0
-        //}
-
-
-        // Face 1
-        int c0_f1idx = EI(e_idx, 1);
-        int v0_f1idx = (c0_f1idx + 1) % 3;
-        if (F(face1, v0_f1idx) == v0_i) { // Face1 correct
             computeNormal(v0, v1, corner1, n1);
-        }
-        else {
-            computeNormal(v1, v0, corner1, n1);
+
         }
 
-        // **Compare n1 with FN.row(face1)**
-        //Eigen::RowVector3d precomputed_n1 = FN.row(face1);
-        //if (n1.dot(precomputed_n1) < 0) {
-        //    n1 = -n1; // Flip n1 to match the hemisphere of precomputed_n1
-        //}
-
-        //FN.row(face1) = n1;
 
         Scalar cos = n0.dot(n1);
 
-
-        // NOW only allows angles up to 90 Degree
-        //if (cos < 0) cos = -cos;
-
-
+        // get the smaller angle of the dotproduct
         if (cos >= 1.0f) cos = 1.0f - Epsilon;
         if (cos <= -1.0f) cos = -1.0f + Epsilon;
 
 
+        // Compute the angle in radians
         Scalar angle = acos(cos);
+
+
+        // Ensure the smaller angle is chosen
+        if (angle > PI / 2) {
+            angle = PI - angle;
+        }
         
         Scalar absAngle = angle > 0 ? angle : -angle;
         // Apply a threshold to determine if the edge is a crease
-        if (absAngle > plastic_deformation_threshold) {
-            stiffness(e_idx) = 0.5;
-        }
+        //if (absAngle > plastic_deformation_threshold) {
+        //    stiffness(e_idx) = 0.5;
+        //}
 
         return angle;
     }
@@ -159,10 +143,10 @@ private:
     // Computes the normal for the 3 given vertices of a face [v0, v1, corner] and saves it in res
     template <typename Scalar>
     void computeNormal(Eigen::Matrix<Scalar, 1, 3>& v0, Eigen::Matrix<Scalar, 1, 3>& v1,
-        Eigen::Matrix<double, 1, 3>& corner, Eigen::Matrix<Scalar, 1, 3>& res) {
+        Eigen::Matrix<Scalar, 1, 3>& v2, Eigen::Matrix<Scalar, 1, 3>& res) {
 
         Eigen::Matrix<Scalar, 1, 3> edge1 = v1 - v0;
-        Eigen::Matrix<Scalar, 1, 3> edge2 = corner - v0;
+        Eigen::Matrix<Scalar, 1, 3> edge2 = v2 - v0;
 
         res = edge1.cross(edge2).normalized();
     }
@@ -170,14 +154,12 @@ private:
     // Computes the face height of the given 3 vertices of the face
     template <typename Scalar>
     Scalar computeFaceHeight(Eigen::Matrix<Scalar, 1, 3>& v0, Eigen::Matrix<Scalar, 1, 3>& v1,
-        Eigen::RowVector3d& corner) {
-        // Base of the triangle not including the corner
-        Eigen::Matrix<Scalar, 1, 3> edge = v1 - v0;
+        Eigen::Matrix<Scalar, 1, 3>& corner0) {
 
         // Compute the height using the triangle area formula:
         // Area = 0.5 * |edge x (v2 - v0)|, Height = 2 * Area / |edge|
-        Scalar area = 0.5 * edge.cross(corner - v0).norm();
-        Scalar norm = edge.norm();
+        Scalar area = 0.5 * (v1 - v0).cross(corner0 - v0).norm();
+        Scalar norm = (v1 - v0).norm();
         if (norm < Epsilon)
             return 0;
 
