@@ -26,9 +26,9 @@ int num_steps = 0;
 
 // Constructor
 DiscreteShell::DiscreteShell()
-    : m_dt(0.1), simulation_duration(10.0),
+    : m_dt(SIMULATION_DT), simulation_duration(10.0),
     // bending_stiffness(1.0),
-      m_beta(0.25), m_gamma(0.5)
+      m_beta(SIMULATION_NEWMARK_BETA), m_gamma(SIMULATION_NEWMARK_GAMMA)
 {
     F = new Eigen::MatrixXi(0, 3);
     V = new Eigen::MatrixXd(0, 3);
@@ -73,14 +73,13 @@ void DiscreteShell::initializeFromFile(const std::string& filename) {
     for (int i = 0; i < V_undef.rows(); ++i) {
         V_undef(i, 1) = 0.0; // Set the y-coordinate (index 1) to 0
     }
+    N_VERTICES = V->rows();
     // TODO REMOVE THAT SHIT
     undeformedMesh = Mesh(V_undef, *F);
-
-
     // Set massmatrix
     igl::massmatrix(V_rest, *F, igl::MASSMATRIX_TYPE_VORONOI, M);
-    // set M as identy for now TODO : change that !
-    M.setIdentity();
+    // M.setIdentity();
+
     // Set up the inverse of M
     // to avoid instability
     // Get all edges
@@ -89,7 +88,6 @@ void DiscreteShell::initializeFromFile(const std::string& filename) {
     std::cout << "F : (" << F->rows() << ", " << F->cols() << ")" << std::endl;
     std::cout << "Faces : " << F->rows() << std::endl;
 
-    N_VERTICES = V->rows();
     // Compute the edges
     igl::edges(*F, *E);
     std::cout << "E : (" << E->rows() << ", " << E->cols() << ")" << std::endl;
@@ -139,15 +137,16 @@ bool DiscreteShell::advanceOneStep(int step) {
     // forces += damping_forces;
 
     // Add external forces (only gravity for now)
+    // TODO /!\ : FIgure out the + and - shit
     add_F_ext(forces);
 
     // Compute acceleration
     Eigen::MatrixXd acceleration = Eigen::MatrixXd::Zero(V->rows(), 3);
     for (int i = 0; i < Velocity->rows(); ++i) {
         double mass_i = M.coeff(i, i); // Mass for particle i
-        acceleration.row(i) = forces.row(i);// / mass_i;
-        Eigen::Vector3d force = forces.row(i);
-        Eigen::Vector3d velocity = Velocity->row(i);
+        // acceleration.row(i) = forces.row(i);// / mass_i;
+        // Eigen::Vector3d force = forces.row(i);
+        // Eigen::Vector3d velocity = Velocity->row(i);
 
 #ifdef DEBUG_VERTEX
         // If we are at vertex 0, log the velocity and force
@@ -164,15 +163,16 @@ bool DiscreteShell::advanceOneStep(int step) {
 #endif
     }
     Eigen::MatrixXd new_position = Eigen::MatrixXd::Zero(V->rows(), 3);
+    // PRINT_VECTOR(acceleration)
     m_solver->solve(new_position, Velocity, &acceleration, V);
 
-    Eigen::MatrixXd a_new =
+    Eigen::MatrixXd a_new_i =
             (new_position - *V - m_dt * *Velocity - (m_dt * m_dt) * (0.5 - m_beta) * acceleration) / (m_beta * m_dt * m_dt);
-    Eigen::MatrixXd v_new = *Velocity + m_dt * ((1.0 - m_gamma) * acceleration + m_gamma * a_new);
+    Eigen::MatrixXd v_new = *Velocity + m_dt * ((1.0 - m_gamma) * acceleration + m_gamma * a_new_i);
 
     *V = new_position;
     *Velocity = v_new;
-    acceleration = a_new;
+    acceleration = a_new_i;
 
     // Update the deformed mesh
     deformedMesh.V = *V;

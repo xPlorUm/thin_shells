@@ -44,7 +44,7 @@ private :
     Eigen::SparseMatrix<double> *m_M_extended;
     DiscreteShell *m_discreteshell;
 
-    bool
+    static bool
     linearSolve(const Eigen::SparseMatrix<double> &systemMatrix, const Eigen::VectorXd &rhs, Eigen::VectorXd &delta_x);
 };
 

@@ -10,6 +10,7 @@
 
 #define PRINT_SHAPE(matrix) std::cout << #matrix << " : " << matrix.rows() << " " << matrix.cols() << std::endl;
 #define CHECK_VECTOR_SIZE(vec, size) assert((vec).size() == (size))
+#define PRINT_VECTOR(vec) std::cout << #vec << "\n" << vec << std::endl;
 
 inline void pretty_print_vector(const Eigen::VectorXd& v) {
     std::cout << "Vector : " << std::endl;

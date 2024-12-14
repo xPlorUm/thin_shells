@@ -35,20 +35,15 @@ bool Solver::solve(Eigen::MatrixXd &Position_solution, Eigen::MatrixXd *Velocity
         // Step 4: Compute internal forces based on the updated positions
         Eigen::MatrixXd f_int_matrix = Eigen::MatrixX3d::Zero(m_discreteshell->N_VERTICES, 3);
         // Convert back u_n to Eigen::MatrixXd and takes its pointer
-        // TODO : is that correct ? Is the vector -> Matrix conversion correct ? No lmao
-        Eigen::MatrixXd u_n_matrix = deflatten_vector(u_n);
-        //m_discreteshell->addStrechingForcesTo(f_int_matrix, &u_n_matrix); // Use updated positions
-        // E IS NOT USED !!!
-        m_discreteshell->addBendingForcesAndHessianTo(f_int_matrix, HessianBending, &u_n_matrix);
-        // Flatten that shit
+        Eigen::MatrixXd u_new_matrix = deflatten_vector(u_new);
+        m_discreteshell->addStrechingForcesTo(f_int_matrix, &u_new_matrix); // Use updated positions
+        m_discreteshell->addBendingForcesAndHessianTo(f_int_matrix, HessianBending, &u_new_matrix);
         Eigen::VectorXd f_int = flatten_matrix(f_int_matrix);
         // Step 5: Compute residual: R = M * a_new + C * v_new + f_int - f_ext
         // As of now, damping matrix is a simple identity matrix SET TO ZERO
-        // TODO : don't forget the mass !
-        Eigen::VectorXd residual = a_new + f_int - f_ext_flatten;
+        Eigen::VectorXd residual = *m_M_extended * a_new - f_int - f_ext_flatten;
         return residual;
     };
-
 
     Eigen::VectorXd Position_flatten = flatten_matrix(*Position_i);
     Eigen::VectorXd Velocity_flatten = flatten_matrix(*Velocity_i);
@@ -63,10 +58,8 @@ bool Solver::solve(Eigen::MatrixXd &Position_solution, Eigen::MatrixXd *Velocity
         std::vector<Eigen::Triplet<double>> triplets = std::vector<Eigen::Triplet<double>>();
         Eigen::SparseMatrix<double> systemMatrix = Eigen::SparseMatrix<double>(Position_i->rows() * 3, Position_i->rows() * 3);
 
-/*
         m_discreteshell->addStretchingHessianTo(triplets, Position_i);
         systemMatrix.setFromTriplets(triplets.begin(), triplets.end());
-*/
         // Bending hessian is computed in the residual function. See comment of the variable
         systemMatrix += HessianBending;
 
