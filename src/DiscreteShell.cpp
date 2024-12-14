@@ -64,7 +64,7 @@ void DiscreteShell::initializeFromFile(const std::string& filename) {
     Eigen::VectorXi J; // Output mapping from F to simplified faces
 
     // Specify the target number of faces
-    igl::decimate(*V, *F, N_FACES_MESH, *V, *F, J);
+    //igl::decimate(*V, *F, N_FACES_MESH, *V, *F, J);
     V_rest = Eigen::MatrixXd(*V);
     deformedMesh = Mesh(V_rest, *F);
 
@@ -324,6 +324,8 @@ void DiscreteShell::addBendingForcesAndHessianTo_internal(Eigen::MatrixXd &bendi
         Eigen::RowVector3<T> v0 = element.variables(deformedMesh.uE(edge_idx, 0));
         Eigen::RowVector3<T> v1 = element.variables(deformedMesh.uE(edge_idx, 1));
         // Compute dihedral angle, height, and norm
+        Eigen::Matrix<T, 4, 3> bend_forces;
+        deformedMesh.computeBendingForces(v0, v1, edge_idx, bend_forces);
         double angle_u = deformedMesh.getDihedralAngles(edge_idx);
         T angle_d = deformedMesh.computeDihedralAngle(v0, v1, edge_idx);
         angle_d = deformedMesh.computeDihedralAngle(v0, v1, edge_idx);
