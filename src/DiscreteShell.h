@@ -63,7 +63,7 @@ public:
         std::cout << "Bending Forces : " << bending_forces.row(vertex_index) << std::endl;
         // Compute stretching forces
         Eigen::MatrixXd stretching_forces = Eigen::MatrixX3d::Zero(V->rows(), 3);
-        // addStrechingForcesTo(stretching_forces, V);
+        addStrechingForcesTo(stretching_forces, V);
         std::cout << "Stretching Forces : " << stretching_forces.row(vertex_index) << std::endl;
     }
 

@@ -9,6 +9,7 @@
 #define STRETCHING_STIFFNESS 1.0
 #define DAMPING = 0.1
 
+// Define the number of faces igl will decimate the mesh into.
 #define N_FACES_MESH 100
 
 #define TOLERANCE_NEWTON 1e-4
@@ -17,5 +18,8 @@
 #define SIMULATION_DT 0.4
 #define SIMULATION_NEWMARK_BETA 0.25
 #define SIMULATION_NEWMARK_GAMMA 0.5
+
+// Enable or disable stretching forces in the newmark algorithm. Useful to debug some stuff.
+#define ENABLE_STRETCHING_FORCES true
 
 #endif //THINSHELLS_CONSTANTS_H
