@@ -54,8 +54,6 @@ public:
         std::cout << "Velocity : " << Velocity->row(vertex_index) << std::endl;
         // Position
         std::cout << "Position : " << V->row(vertex_index) << std::endl;
-        // Forces
-        std::cout << "Forces : " << forces.row(vertex_index) << std::endl;
 
         // Compute the bending forces
         Eigen::MatrixXd bending_forces = Eigen::MatrixX3d::Zero(V->rows(), 3);
@@ -101,6 +99,7 @@ private:
     Eigen::MatrixXd *V; // Current mesh,
     Eigen::MatrixXd V_rest; // Undeformed mesh
     Eigen::MatrixXd *Velocity; // Velocity of the shell (point-wise)
+    Eigen::MatrixXd *Acceleration; // Acceleration of the shell (point-wise)
     Eigen::MatrixXi *E; // Edges of the shell
     Eigen::VectorXd E_length_rest; // Rest length of edges
     Eigen::SparseMatrix<double> M; // Massmatrix

@@ -33,6 +33,7 @@ DiscreteShell::DiscreteShell()
     F = new Eigen::MatrixXi(0, 3);
     V = new Eigen::MatrixXd(0, 3);
     Velocity = new Eigen::MatrixXd(0, 3);
+    Acceleration = new Eigen::MatrixXd(0, 3);
     E = new Eigen::MatrixXi(0, 2);
     forces = Eigen::MatrixX3d::Zero(V->rows(), 3);
 }
@@ -108,17 +109,22 @@ void DiscreteShell::initializeFromFile(const std::string& filename) {
     }
 
     // ------ Artifical little change to the mesh -----------
+    V->row(14).z() +=30 ;
+/*
     V->row(42)  += Eigen::Vector3d(0.0, 0, 30);
     V->row(43)  += Eigen::Vector3d(0.0, 0, 30);
     V->row(0)   += Eigen::Vector3d(0.0, 0, 30);
     V->row(1)   += Eigen::Vector3d(0.0, 0, 30);
     V->row(2)   += Eigen::Vector3d(0.0, 0, 30);
+*/
     // M.coeffRef(8, 8) = 1e50;
     // ------------------------------------------------------
 
     // Set velocity to zero everywhere
     Velocity->resize(V->rows(), 3);
     Velocity->setZero();
+    Acceleration->resize(V->rows(), 3);
+    Acceleration->setZero();
 
     // Initialize the solver
     m_solver = new Solver(m_beta, m_gamma, m_dt, &M);
@@ -126,53 +132,18 @@ void DiscreteShell::initializeFromFile(const std::string& filename) {
 }
 
 bool DiscreteShell::advanceOneStep(int step) {
-    // Reset forces
-    forces.setZero(V->rows(), 3);
-    // Compute forces
-    // addStrechingForcesTo(forces, V);
-    addBendingForcesTo(forces, V);
-    // Compute damping forces
-    Eigen::MatrixX3d damping_forces = Eigen::MatrixX3d::Zero(V->rows(), 3);
-    computeDampingForces(damping_forces);
-    // forces += damping_forces;
-
-    // Add external forces (only gravity for now)
-    // TODO /!\ : FIgure out the + and - shit
-    add_F_ext(forces);
-
     // Compute acceleration
-    Eigen::MatrixXd acceleration = Eigen::MatrixXd::Zero(V->rows(), 3);
-    for (int i = 0; i < Velocity->rows(); ++i) {
-        double mass_i = M.coeff(i, i); // Mass for particle i
-        // acceleration.row(i) = forces.row(i);// / mass_i;
-        // Eigen::Vector3d force = forces.row(i);
-        // Eigen::Vector3d velocity = Velocity->row(i);
-
-#ifdef DEBUG_VERTEX
-        // If we are at vertex 0, log the velocity and force
-        // Log time, velocity, force, and position for vertex 0
-        if (i == 0) {
-            fileDebugger.getStream() << num_steps++ << ","
-                    << V->row(0).x() << "," << V->row(0).y() << "," << V->row(0).z() << ","
-                    << velocity.x() << "," << velocity.y() << "," << velocity.z() << ","
-                    << force.x() << "," << force.y() << "," << force.z() << ","
-                    << bending_forces.row(0).x() << "," << bending_forces.row(0).y() << "," << bending_forces.row(0).z() << ","
-                    << damping_forces.row(0).x() << "," << damping_forces.row(0).y() << "," << damping_forces.row(0).z() << ","
-                    << "\n";
-        }
-#endif
-    }
     Eigen::MatrixXd new_position = Eigen::MatrixXd::Zero(V->rows(), 3);
     // PRINT_VECTOR(acceleration)
-    m_solver->solve(new_position, Velocity, &acceleration, V);
+    m_solver->solve(new_position, Velocity, Acceleration, V);
 
     Eigen::MatrixXd a_new_i =
-            (new_position - *V - m_dt * *Velocity - (m_dt * m_dt) * (0.5 - m_beta) * acceleration) / (m_beta * m_dt * m_dt);
-    Eigen::MatrixXd v_new = *Velocity + m_dt * ((1.0 - m_gamma) * acceleration + m_gamma * a_new_i);
+            (new_position - *V - m_dt * *Velocity - (m_dt * m_dt) * (0.5 - m_beta) * *Acceleration) / (m_beta * m_dt * m_dt);
+    Eigen::MatrixXd v_new = *Velocity + m_dt * ((1.0 - m_gamma) * *Acceleration + m_gamma * a_new_i);
 
     *V = new_position;
     *Velocity = v_new;
-    acceleration = a_new_i;
+    *Acceleration = a_new_i;
 
     // Update the deformed mesh
     deformedMesh.V = *V;
@@ -284,17 +255,13 @@ void DiscreteShell::computeDampingForces(Eigen::MatrixX3d &damping_forces) {
         // Get the indices of the two vertices of the edge
         int v1 = E->operator()(i, 0);
         int v2 = E->operator()(i, 1);
-        
         // Normalized direction of the edge
         Eigen::Vector3d edge = V->row(v2) - V->row(v1);
         Eigen::Vector3d edge_dir = edge.normalized();
-
         // Get the relaitve velocity of the two vertices
         Eigen::Vector3d vel1 = Velocity->row(v1);
         Eigen::Vector3d vel2 = Velocity->row(v2);
-
         double edge_stifness = deformedMesh.stiffness(i);
-
         // Compute the damping force
         Eigen::VectorXd damping_force = stiffness_damping * edge_stifness * (vel2 - vel1).dot(edge_dir) * edge_dir;
 
@@ -311,6 +278,11 @@ void DiscreteShell::computeDampingForces(Eigen::MatrixX3d &damping_forces) {
 
 void DiscreteShell::addBendingForcesAndHessianTo_internal(Eigen::MatrixXd &bending_forces, Eigen::SparseMatrix<double> &H,
                                                           const Eigen::MatrixXd *V, bool computeHessian) {
+
+    // Upda the deformed mesh vertices to updated vertices. This could be a massive
+    auto originalV = deformedMesh.V;
+    deformedMesh.V = *V;
+
     //3 variables per vertex. Objective per edge, using 3 vertices each :
     auto func = TinyAD::scalar_function<3>(TinyAD::range(deformedMesh.V.rows()));
     func.add_elements<2>(TinyAD::range(deformedMesh.uE.rows()), [&](auto &element) ->
@@ -318,7 +290,6 @@ void DiscreteShell::addBendingForcesAndHessianTo_internal(Eigen::MatrixXd &bendi
     {
         using T =
         TINYAD_SCALAR_TYPE(element);
-
         // Variables associated with the edge's vertices
         Eigen::Index edge_idx = element.handle;
         Eigen::RowVector3<T> v0 = element.variables(deformedMesh.uE(edge_idx, 0));
@@ -366,6 +337,9 @@ void DiscreteShell::addBendingForcesAndHessianTo_internal(Eigen::MatrixXd &bendi
     for (int vertex_idx = 0; vertex_idx < g.size() / 3; vertex_idx++) {
         bending_forces.row(vertex_idx) += g.segment<3>(3 * vertex_idx);
     }
+
+    // Sets back the original vertices. This is a very dirty design
+    deformedMesh.V = originalV;
 }
 
 void DiscreteShell::addBendingForcesTo(Eigen::MatrixXd &bending_forces, const Eigen::MatrixXd *V) {
