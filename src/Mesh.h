@@ -35,12 +35,13 @@ public:
     Eigen::VectorXi EMAP; // Maps each row from E to uE (#F*3, 1)
     Eigen::MatrixXi EF; // Edge-to-face incidence matrix (#uE, 2)
     Eigen::MatrixXi EI; // Edge-to-vertex incidence matrix (#uE, 2)
-
+    Eigen::MatrixXi E; // Edges of the mesh (#E, 2)
+    Eigen::VectorXd E_resting_lengths; // Resting lengths of the edges (#E, 1)
 
     Mesh();
 
     // Constructor to initialize the mesh with vertices, faces
-    Mesh(const Eigen::MatrixXd &V_, const Eigen::MatrixXi &F_);
+    Mesh(Eigen::MatrixXd V_, const Eigen::MatrixXi &F_, const Eigen::MatrixXi &E_);
 
     // Computes and saves the dihedral angles of the current mesh (#uE, 1) and also the Stiffness Matrix (#uE, 1)
     void calculateAllDihedralAngles(Eigen::VectorXd &angles);

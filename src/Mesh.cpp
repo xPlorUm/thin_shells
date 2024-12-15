@@ -1,7 +1,10 @@
 #include "Mesh.h"
+#include "common.h"
 
 #include <igl/per_face_normals.h>
 #include <igl/edge_flaps.h>
+
+#include <utility>
 
 
 //template <typename T>
@@ -9,13 +12,15 @@ Mesh::Mesh() {
 }
 
 // Constructor for Mesh class
-Mesh::Mesh(const Eigen::MatrixXd &V_, const Eigen::MatrixXi &F_)
-        : V(V_), F(F_) {
+Mesh::Mesh(Eigen::MatrixXd V_, const Eigen::MatrixXi &F_, const Eigen::MatrixXi &E_)
+        : V(std::move(V_)), F(F_), E(E_) {
     igl::edge_flaps(F, uE, EMAP, EF, EI); // Compute the edges and the edge-face incidence
     calculateAllDihedralAngles(dihedralAngles);
     // set stiffness to 1 for all edges
     stiffness = Eigen::VectorXd(uE.rows());
     stiffness.setOnes();
+    // Edge length :
+    igl::edge_lengths(V, E, E_resting_lengths);
 }
 
 

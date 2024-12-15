@@ -17,9 +17,11 @@ bool Solver::solve(Eigen::MatrixXd &Position_solution, Eigen::MatrixXd *Velocity
     // THe hessian of the bending energy. This matrix is made global to avoid repetitive calls from
     // addBendingForcesAndHessianTo.
     Eigen::SparseMatrix<double> HessianBending = Eigen::SparseMatrix<double>(m_discreteshell->N_VERTICES * 3, m_discreteshell->N_VERTICES * 3);
+    // Same but for stretching
+    Eigen::SparseMatrix<double> HessianStretching = Eigen::SparseMatrix<double>(m_discreteshell->N_VERTICES * 3, m_discreteshell->N_VERTICES * 3);
 
     // ---- RESIDUAL FUNCTION ----
-    auto R = [this, &HessianBending](
+    auto R = [this, &HessianBending, &HessianStretching](
                     const Eigen::VectorXd &u_new,
                     const Eigen::VectorXd &u_n,
                     const Eigen::VectorXd &v_n,
@@ -36,7 +38,7 @@ bool Solver::solve(Eigen::MatrixXd &Position_solution, Eigen::MatrixXd *Velocity
         // Convert back u_n to Eigen::MatrixXd and takes its pointer
         Eigen::MatrixXd u_new_matrix = deflatten_vector(u_new);
         if (ENABLE_STRETCHING_FORCES)
-            m_discreteshell->addStrechingForcesTo(f_int_matrix, &u_new_matrix); // Use updated positions
+            m_discreteshell->addStretchingForcesAndHessianTo_AD(f_int_matrix, HessianStretching, &u_new_matrix);
 
         m_discreteshell->addBendingForcesAndHessianTo(f_int_matrix, HessianBending, &u_new_matrix);
         Eigen::VectorXd f_int = flatten_matrix(f_int_matrix);
@@ -56,13 +58,12 @@ bool Solver::solve(Eigen::MatrixXd &Position_solution, Eigen::MatrixXd *Velocity
     // m_discreteshell->add_F_ext(f_ext_matrix);
     Eigen::VectorXd f_ext_flatten = flatten_matrix(f_ext_matrix);
     // ---- SYSTEM MATRIX FUNCTION ----
-    auto S = [this, C, Position_i, &HessianBending](const Eigen::VectorXd &u_new) {
+    auto S = [this, C, &HessianBending, &HessianStretching](const Eigen::VectorXd &u_new) {
         std::vector<Eigen::Triplet<double>> triplets = std::vector<Eigen::Triplet<double>>();
         Eigen::SparseMatrix<double> systemMatrix = Eigen::SparseMatrix<double>(m_discreteshell->N_VERTICES * 3, m_discreteshell->N_VERTICES * 3);
         Eigen::MatrixXd u_new_matrix = deflatten_vector(u_new);
         if (ENABLE_STRETCHING_FORCES) {
-            m_discreteshell->addStretchingHessianTo(triplets, &u_new_matrix);
-            systemMatrix.setFromTriplets(triplets.begin(), triplets.end());
+            systemMatrix += HessianStretching;
         }
         // Bending hessian is computed in the residual function. See comment of the variable
         systemMatrix += HessianBending;

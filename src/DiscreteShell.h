@@ -59,10 +59,11 @@ public:
         Eigen::MatrixXd bending_forces = Eigen::MatrixX3d::Zero(V->rows(), 3);
         addBendingForcesTo(bending_forces, V);
         std::cout << "Bending Forces : " << bending_forces.row(vertex_index) << std::endl;
-        // Compute stretching forces
+        Eigen::SparseMatrix<double> H = Eigen::SparseMatrix<double>(V->rows() * 3, V->rows() * 3);
         Eigen::MatrixXd stretching_forces = Eigen::MatrixX3d::Zero(V->rows(), 3);
-        addStrechingForcesTo(stretching_forces, V);
-        std::cout << "Stretching Forces : " << stretching_forces.row(vertex_index) << std::endl;
+        addStretchingForcesAndHessianTo_AD(stretching_forces, H, V);
+        std::cout << "Stretching forces with AD : " << stretching_forces.row(vertex_index) << std::endl;
+
     }
 
     // Returns the positions to get drawn
@@ -73,17 +74,24 @@ public:
 
     void compute_F_int(Eigen::MatrixX3d &_forces, const Eigen::MatrixXd *_V) const;
 
-    void addStrechingForcesTo(Eigen::MatrixXd &_forces, const Eigen::MatrixXd *V_);
-
-    void addStretchingHessianTo(std::vector<Eigen::Triplet<double>> &triplets, const Eigen::MatrixXd *V_);
-
-     void add_F_ext(Eigen::MatrixXd &_forces) ;
+    void add_F_ext(Eigen::MatrixXd &_forces);
 
     void addBendingForcesTo(Eigen::MatrixXd &bending_forces, const Eigen::MatrixXd *V);
 
     void
     addBendingForcesAndHessianTo(Eigen::MatrixXd &bending_forces, Eigen::SparseMatrix<double> &H,
                                  const Eigen::MatrixXd *V);
+
+    void addStretchingForcesTo_AD(Eigen::MatrixXd &forces, const Eigen::MatrixXd *V) {
+        Eigen::SparseMatrix<double> H = Eigen::SparseMatrix<double>(V->rows() * 3, V->rows() * 3);
+        addStretchingForcesAndHessianTo_AD_internal(forces, H, V, false);
+    }
+
+    void addStretchingForcesAndHessianTo_AD(Eigen::MatrixXd &forces, Eigen::SparseMatrix<double> &H,
+                                            const Eigen::MatrixXd *V) {
+        addStretchingForcesAndHessianTo_AD_internal(forces, H, V, true);
+    }
+
 private:
 
     // Physical properties
@@ -123,6 +131,11 @@ private:
 
     void addBendingForcesAndHessianTo_internal(Eigen::MatrixXd &bending_forces, Eigen::SparseMatrix<double> &H,
                                                const Eigen::MatrixXd *V, bool computeHessian = false);
+
+
+    void addStretchingForcesAndHessianTo_AD_internal(Eigen::MatrixXd &forces, Eigen::SparseMatrix<double> &H,
+                                                     const Eigen::MatrixXd *V, bool computeHessian);
+
 };
 
 
