@@ -24,7 +24,6 @@
 #define ENABLE_STRETCHING_FORCES true
 #define ENABLE_AREA_PRESERVATION_FORCES true
 
-
 #define APPLY_INITIAL_CHANGES(V) \
 /*
     (V)->row(0)      += Eigen::Vector3d(0.0, 0.0, 30.0); \
@@ -34,6 +33,8 @@
     (V)->row(42)     += Eigen::Vector3d(0.0, 0.0, 30.0); \
     (V)->row(43)     += Eigen::Vector3d(0.0, 0.0, 30.0); \
 */
+
+#define SAVE_FRAMES 0
 
 
 #endif //THINSHELLS_CONSTANTS_H

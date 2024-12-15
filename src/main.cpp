@@ -6,15 +6,21 @@
 #include <igl/unproject_onto_mesh.h>
 #include "DiscreteShell.h"
 #include <iostream>
-
+#include <filesystem> // Add this line
 
 #include <memory>
 #include <utility>
+#include "constants.h"
+
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "libs/stb_image_write.h"
+// #include <igl/png/.h>
 
 //activate this for alternate UI (easier to debug but no interactive updates, turn this OFF for your report)
 //#define UPDATE_ONLY_ON_UP
 
 #include <string.h>
+
 std::string PATH = "../data/";
 //string file = "paper-plane-subd.off";
 // std::string file = "twisted.off";
@@ -35,6 +41,7 @@ enum MouseMode {
     SELECT, TRANSLATE, ROTATE, NONE
 };
 
+int frame_count;
 
 
 //for selecting vertices
@@ -52,7 +59,7 @@ typedef Eigen::Triplet<double> T;
 
 // animation variables
 double anim_t = 0; // current step of animation
-double step_size = 1; 
+double step_size = 1;
 int total_steps = 50; // how many steps are used for animation
 // False by default, need to start that in the GUI
 bool animation = false;
@@ -62,9 +69,11 @@ bool animation = false;
 DiscreteShell ds;
 
 // functions for libigl
-bool callback_pre_draw(Viewer& viewer);
-bool callback_mouse_down(Viewer& viewer, int button, int modifier);
-bool callback_key_down(Viewer& viewer, unsigned char key, int modifiers);
+bool callback_pre_draw(Viewer &viewer);
+
+bool callback_mouse_down(Viewer &viewer, int button, int modifier);
+
+bool callback_key_down(Viewer &viewer, unsigned char key, int modifiers);
 
 
 bool load_mesh(string filename) {
@@ -79,14 +88,23 @@ bool load_mesh(string filename) {
 }
 
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
     if (argc != 2) {
         cout << "Usage : thin_shells <path-to-mesh>.off>" << endl;
         ds.initializeFromFile(PATH + file);
-    }
-    else {
+    } else {
         ds.initializeFromFile(argv[1]);
     }
+#if SAVE_FRAMES == 1
+    // Create the frames directory if it doesn't exist
+    std::string frames_dir = "frames"; // Relative path; adjust as needed
+    if (!std::filesystem::exists(frames_dir)) {
+        if (!std::filesystem::create_directory(frames_dir)) {
+            cerr << "Error: Could not create frames directory!" << endl;
+            return EXIT_FAILURE;
+        }
+    }
+#endif
 
     // Initialize Viewer
     viewer.data().clear();
@@ -124,15 +142,15 @@ int main(int argc, char* argv[]) {
 }
 
 // callback_pre_draw runs continuously as long as the mouse hovers over the window
-bool callback_pre_draw(Viewer& viewer) {
+bool callback_pre_draw(Viewer &viewer) {
     //clear points and lines
     viewer.data().set_points(Eigen::MatrixXd::Zero(0, 3), Eigen::MatrixXd::Zero(0, 3));
     viewer.data().set_edges(Eigen::MatrixXd::Zero(0, 3), Eigen::MatrixXi::Zero(0, 3), Eigen::MatrixXd::Zero(0, 3));
 
     //continue animation
     if (animation) {
-        int begin_step = (int)(anim_t) % total_steps; // starts again whenever anim_t > num_poses
-        int end_step = (int)(floor(anim_t) + 1) % total_steps;
+        int begin_step = (int) (anim_t) % total_steps; // starts again whenever anim_t > num_poses
+        int end_step = (int) (floor(anim_t) + 1) % total_steps;
         //TODO advance time step of discrete shell
         ds.advanceOneStep(begin_step);
         //TODO change/add function in discrete shell class which returns the resulting V:Vertices Matrix
@@ -145,6 +163,48 @@ bool callback_pre_draw(Viewer& viewer) {
     auto V = ds.getPositions();
     auto F = ds.getFaces();
     viewer.data().set_mesh(*V, *F);
+
+    // Save frame if requested
+#if SAVE_FRAMES == 1
+    if (!animation)
+        return false;
+// Allocate temporary buffers for 1280x800 image
+    Eigen::Matrix<unsigned char,Eigen::Dynamic,Eigen::Dynamic> R(1280,800);
+    Eigen::Matrix<unsigned char,Eigen::Dynamic,Eigen::Dynamic> G(1280,800);
+    Eigen::Matrix<unsigned char,Eigen::Dynamic,Eigen::Dynamic> B(1280,800);
+    Eigen::Matrix<unsigned char,Eigen::Dynamic,Eigen::Dynamic> A(1280,800);
+
+// Draw the scene in the buffers
+    viewer.core().draw_buffer(viewer.data(),false,R,G,B,A);
+
+// Save it to a PNG
+    int height = R.rows();
+    int width  = R.cols();
+
+    std::vector<unsigned char> rgba(width * height * 4);
+
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+            int idx = (y * width + x) * 4;
+            rgba[idx + 0] = R(y, x); // Red channel
+            rgba[idx + 1] = G(y, x); // Green channel
+            rgba[idx + 2] = B(y, x); // Blue channel
+            rgba[idx + 3] = A(y, x); // Alpha channel
+        }
+    }
+
+    char filename[256];
+    sprintf(filename, "frames/frame_%04d.png", frame_count++);
+
+// The last parameter (stride_in_bytes) is width * number_of_channels
+// Here we have 4 channels (RGBA).
+    if (!stbi_write_png(filename, width, height, 4, rgba.data(), width*4)) {
+        std::cerr << "Error: Failed to write " << filename << std::endl;
+    } else {
+        std::cout << "Saved frame " << filename << std::endl;
+    }
+    std::cout << "Saved frame " << filename << std::endl;
+#endif
     return false;
 }
 
@@ -157,7 +217,8 @@ bool callback_mouse_down(Viewer &viewer, int button, int modifier) {
     double x = viewer.current_mouse_x;
     double y = viewer.core().viewport(3) - viewer.current_mouse_y;
     if (igl::unproject_onto_mesh(Eigen::Vector2f(x, y), viewer.core().view /* viewer.data().model*/,
-                                 viewer.core().proj, viewer.core().viewport, *ds.getPositions(), *ds.getFaces(), fid, bc)) {
+                                 viewer.core().proj, viewer.core().viewport, *ds.getPositions(), *ds.getFaces(), fid,
+                                 bc)) {
         // paint hit red
         bc.maxCoeff(&vi);
         vi = (*ds.getFaces())(fid, vi);
