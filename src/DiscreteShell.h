@@ -63,6 +63,8 @@ public:
         Eigen::MatrixXd stretching_forces = Eigen::MatrixX3d::Zero(V->rows(), 3);
         addStretchingForcesAndHessianTo_AD(stretching_forces, H, V);
         std::cout << "Stretching forces with AD : " << stretching_forces.row(vertex_index) << std::endl;
+        addAreaPreserationForcesAndHessianTo(stretching_forces, H, V);
+        std::cout << "Area preservation forces with AD : " << stretching_forces.row(vertex_index) << std::endl;
 
     }
 
@@ -74,7 +76,7 @@ public:
 
     void compute_F_int(Eigen::MatrixX3d &_forces, const Eigen::MatrixXd *_V) const;
 
-    void add_F_ext(Eigen::MatrixXd &_forces);
+    void add_F_ext(Eigen::MatrixXd &_forces, int step);
 
     void addBendingForcesTo(Eigen::MatrixXd &bending_forces, const Eigen::MatrixXd *V);
 
@@ -91,6 +93,9 @@ public:
                                             const Eigen::MatrixXd *V) {
         addStretchingForcesAndHessianTo_AD_internal(forces, H, V, true);
     }
+
+    void addAreaPreserationForcesAndHessianTo(Eigen::MatrixXd &forces, Eigen::SparseMatrix<double> &H,
+                                              const Eigen::MatrixXd *V);
 
 private:
 

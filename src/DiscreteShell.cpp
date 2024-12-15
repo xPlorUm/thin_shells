@@ -92,7 +92,6 @@ void DiscreteShell::initializeFromFile(const std::string& filename) {
     std::cout << "E : (" << E->rows() << ", " << E->cols() << ")" << std::endl;
 
     deformedMesh = Mesh(V_rest, *F, *E);
-    undeformedMesh = Mesh(V_undef, *F, *E);
     // Compute the rest length of the edges
     // This assumes that the undeformed mesh is the initial mesh
     // For paper, might be an okay assumption
@@ -108,17 +107,7 @@ void DiscreteShell::initializeFromFile(const std::string& filename) {
         E_length_rest(i) = (p2 - p1).norm();
     }
 
-    // ------ Artifical little change to the mesh -----------
- V->row(14).z() +=30 ;
-/*
-    V->row(42)  += Eigen::Vector3d(0.0, 0, 30);
-    V->row(43)  += Eigen::Vector3d(0.0, 0, 30);
-    V->row(0)   += Eigen::Vector3d(0.0, 0, 30);
-    V->row(1)   += Eigen::Vector3d(0.0, 0, 30);
-    V->row(2)   += Eigen::Vector3d(0.0, 0, 30);
-*/
-    // M.coeffRef(8, 8) = 1e50;
-    // ------------------------------------------------------
+    APPLY_INITIAL_CHANGES(V);
 
     // Set velocity to zero everywhere
     Velocity->resize(V->rows(), 3);
@@ -238,6 +227,50 @@ void DiscreteShell::addStretchingForcesAndHessianTo_AD_internal(Eigen::MatrixXd 
     deformedMesh.V = originalV;
 }
 
+
+void DiscreteShell::addAreaPreserationForcesAndHessianTo(Eigen::MatrixXd &forces, Eigen::SparseMatrix<double> &H,
+                                                         const Eigen::MatrixXd *V) {
+    //3 variables per vertex. Objective per edge, using 3 vertices each :
+    // Upda the deformed mesh vertices to updated vertices. This could be a massive
+    auto originalV = deformedMesh.V;
+    deformedMesh.V = *V;
+
+    //3 variables per vertex. Objective per edge, using 3 vertices each :
+    auto func = TinyAD::scalar_function<3>(TinyAD::range(deformedMesh.V.rows()));
+    func.add_elements<3>(TinyAD::range(deformedMesh.F.rows()), [&](auto &element) ->
+            TINYAD_SCALAR_TYPE(element)
+    {
+        using T = TINYAD_SCALAR_TYPE(element);
+        // Variables associated with the edge's vertices
+        Eigen::Index face_idcx = element.handle;
+        Eigen::RowVector3<T> v0 = element.variables(deformedMesh.F(face_idcx, 0));
+        Eigen::RowVector3<T> v1 = element.variables(deformedMesh.F(face_idcx, 1));
+        Eigen::RowVector3<T> v2 = element.variables(deformedMesh.F(face_idcx, 2));
+        // Compute current length e
+        T rest_area = deformedMesh.F_resting_areas(face_idcx);
+        T current_area = computeArea(v0, v1, v2);
+        T ratio = current_area / rest_area;
+        // Compute the stretching energy, accordin to paper's formula.
+        T energy = AREA_PRESERVATION_STIFFNESS * (1 - ratio) * (1 - ratio) * rest_area;
+        return energy;
+    });
+
+    Eigen::VectorXd x = func.x_from_data([&](int vertex_idx) -> Eigen::VectorXd {
+        return deformedMesh.V.row(vertex_idx);
+    });
+
+    // Structured binding to unpack the tuple
+    auto [f_, g, H_t] = func.eval_with_hessian_proj(x);
+    H = H_t;
+
+    for (int vertex_idx = 0; vertex_idx < g.size() / 3; vertex_idx++) {
+        forces.row(vertex_idx) += g.segment<3>(3 * vertex_idx);
+    }
+    // Sets back the original vertices. This is a very dirty design but I'm too scared to modify anything at this point
+    deformedMesh.V = originalV;
+}
+
+
 void DiscreteShell::addBendingForcesAndHessianTo_internal(Eigen::MatrixXd &bending_forces, Eigen::SparseMatrix<double> &H,
                                                           const Eigen::MatrixXd *V, bool computeHessian) {
 
@@ -267,7 +300,7 @@ void DiscreteShell::addBendingForcesAndHessianTo_internal(Eigen::MatrixXd &bendi
         if (height <= Epsilon)
             return (T) 0.0;
         // Compute bending energy for this edge
-        T bending_energy = ((angle_u - angle_d) * (angle_u - angle_d) * norm * stiffness) / height;
+        T bending_energy = BENDING_STIFFNESS * ((angle_u - angle_d) * (angle_u - angle_d) * norm * stiffness) / height;
         return bending_energy;
     });
 
@@ -317,7 +350,7 @@ void DiscreteShell::addBendingForcesAndHessianTo(Eigen::MatrixXd &bending_forces
 
 
 
-void DiscreteShell::add_F_ext(Eigen::MatrixXd &_forces) {
+void DiscreteShell::add_F_ext(Eigen::MatrixXd &_forces, int step) {
     // Just gravity for now
     // Substract gravity :
     Eigen::RowVector3d gravity(0, -9.81, 0);
@@ -325,8 +358,8 @@ void DiscreteShell::add_F_ext(Eigen::MatrixXd &_forces) {
         // _forces.row(i).y() -= 9.81;
     }
     // Wind only on vertex 42
-    Eigen::RowVector3d wind(0, 0, 100  );
-    // _forces.row(42) += wind;
+    Eigen::RowVector3d wind(0, 0, 10);
+    _forces.row(42) += wind;
 }
 
 const Eigen::MatrixXd* DiscreteShell::getPositions() {

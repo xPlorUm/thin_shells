@@ -19,9 +19,11 @@ bool Solver::solve(Eigen::MatrixXd &Position_solution, Eigen::MatrixXd *Velocity
     Eigen::SparseMatrix<double> HessianBending = Eigen::SparseMatrix<double>(m_discreteshell->N_VERTICES * 3, m_discreteshell->N_VERTICES * 3);
     // Same but for stretching
     Eigen::SparseMatrix<double> HessianStretching = Eigen::SparseMatrix<double>(m_discreteshell->N_VERTICES * 3, m_discreteshell->N_VERTICES * 3);
+    // Same, but for area preservation
+    Eigen::SparseMatrix<double> HessianAreaPreserving = Eigen::SparseMatrix<double>(m_discreteshell->N_VERTICES * 3, m_discreteshell->N_VERTICES * 3);
 
     // ---- RESIDUAL FUNCTION ----
-    auto R = [this, &HessianBending, &HessianStretching](
+    auto R = [this, &HessianBending, &HessianStretching, &HessianAreaPreserving](
                     const Eigen::VectorXd &u_new,
                     const Eigen::VectorXd &u_n,
                     const Eigen::VectorXd &v_n,
@@ -39,6 +41,8 @@ bool Solver::solve(Eigen::MatrixXd &Position_solution, Eigen::MatrixXd *Velocity
         Eigen::MatrixXd u_new_matrix = deflatten_vector(u_new);
         if (ENABLE_STRETCHING_FORCES)
             m_discreteshell->addStretchingForcesAndHessianTo_AD(f_int_matrix, HessianStretching, &u_new_matrix);
+        if (ENABLE_AREA_PRESERVATION_FORCES)
+            m_discreteshell->addAreaPreserationForcesAndHessianTo(f_int_matrix, HessianAreaPreserving, &u_new_matrix);
 
         m_discreteshell->addBendingForcesAndHessianTo(f_int_matrix, HessianBending, &u_new_matrix);
         Eigen::VectorXd f_int = flatten_matrix(f_int_matrix);
@@ -55,15 +59,18 @@ bool Solver::solve(Eigen::MatrixXd &Position_solution, Eigen::MatrixXd *Velocity
     Eigen::VectorXd u_new = Position_i_flatten;
 
     Eigen::MatrixXd f_ext_matrix = Eigen::MatrixXd::Zero(m_discreteshell->N_VERTICES, 3);
-    // m_discreteshell->add_F_ext(f_ext_matrix);
+    m_discreteshell->add_F_ext(f_ext_matrix, -1);
     Eigen::VectorXd f_ext_flatten = flatten_matrix(f_ext_matrix);
     // ---- SYSTEM MATRIX FUNCTION ----
-    auto S = [this, C, &HessianBending, &HessianStretching](const Eigen::VectorXd &u_new) {
+    auto S = [this, C, &HessianBending, &HessianStretching, &HessianAreaPreserving](const Eigen::VectorXd &u_new) {
         std::vector<Eigen::Triplet<double>> triplets = std::vector<Eigen::Triplet<double>>();
         Eigen::SparseMatrix<double> systemMatrix = Eigen::SparseMatrix<double>(m_discreteshell->N_VERTICES * 3, m_discreteshell->N_VERTICES * 3);
         Eigen::MatrixXd u_new_matrix = deflatten_vector(u_new);
         if (ENABLE_STRETCHING_FORCES) {
             systemMatrix += HessianStretching;
+        }
+        if (ENABLE_AREA_PRESERVATION_FORCES) {
+            systemMatrix += HessianAreaPreserving;
         }
         // Bending hessian is computed in the residual function. See comment of the variable
         systemMatrix += HessianBending;

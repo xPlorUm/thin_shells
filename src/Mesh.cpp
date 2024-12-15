@@ -21,6 +21,11 @@ Mesh::Mesh(Eigen::MatrixXd V_, const Eigen::MatrixXi &F_, const Eigen::MatrixXi 
     stiffness.setOnes();
     // Edge length :
     igl::edge_lengths(V, E, E_resting_lengths);
+    // Compute all resting faces area
+    F_resting_areas.resize(F.rows());
+    for (int i = 0; i < F.rows(); i++) {
+        F_resting_areas(i) = computeArea(V.row(F(i, 0)), V.row(F(i, 1)), V.row(F(i, 2)));
+    }
 }
 
 

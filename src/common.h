@@ -12,6 +12,7 @@
 #define CHECK_VECTOR_SIZE(vec, size) assert((vec).size() == (size))
 #define PRINT_VECTOR(vec) std::cout << #vec << "\n" << vec << std::endl;
 
+
 inline void pretty_print_vector(const Eigen::VectorXd& v) {
     std::cout << "Vector : " << std::endl;
     for (int i = 0; i < v.size(); i++) {
@@ -71,6 +72,20 @@ inline Eigen::MatrixXd deflatten_vector(const Eigen::VectorXd &v) {
         m.row(i / 3) = v.segment<3>(i).transpose();
     }
     return m;
+}
+
+/**
+ * What you would expect it to do.
+ */
+template <typename Derived>
+inline auto computeArea(const Eigen::MatrixBase<Derived> &v0,
+                        const Eigen::MatrixBase<Derived> &v1,
+                        const Eigen::MatrixBase<Derived> &v2)
+-> typename Derived::Scalar {
+    using T = typename Derived::Scalar;
+    Eigen::Matrix<T,3,1> e1 = (v1 - v0).transpose();
+    Eigen::Matrix<T,3,1> e2 = (v2 - v0).transpose();
+    return T(0.5) * (e1.cross(e2)).norm();
 }
 
 #endif //THINSHELLS_COMMON_H

@@ -37,6 +37,7 @@ public:
     Eigen::MatrixXi EI; // Edge-to-vertex incidence matrix (#uE, 2)
     Eigen::MatrixXi E; // Edges of the mesh (#E, 2)
     Eigen::VectorXd E_resting_lengths; // Resting lengths of the edges (#E, 1)
+    Eigen::VectorXd F_resting_areas; // Resting areas of the faces (#F, 1)
 
     Mesh();
 
