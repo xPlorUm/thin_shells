@@ -9,10 +9,8 @@ Maybe we should change the function names since they're currently the same as th
 #include "constants.h"
 #include <iostream>
 #include <igl/edges.h> // Include this header to use igl::edges
-#include <filesystem>
 #include <igl/decimate.h>
-#include <fstream>
-#include <iostream>
+#include <filesystem>
 
 #include <TinyAD/ScalarFunction.hh>
 #include <TinyAD/Utils/NewtonDirection.hh>
@@ -62,22 +60,38 @@ void DiscreteShell::initializeFromFile(const std::string& filename) {
     // Load mesh (vertices and faces)
     igl::read_triangle_mesh(filename, *V, *F);
 
+    *V *= 300;
+
     Eigen::VectorXi J; // Output mapping from F to simplified faces
 
     // Specify the target number of faces
-    igl::decimate(*V, *F, N_FACES_MESH, *V, *F, J);
+#ifdef DECIMATE_N_FACES_TARGET_MESH
+        igl::decimate(*V, *F, DECIMATE_N_FACES_TARGET_MESH, *V, *F, J);
+#endif
+#ifdef UPSAMPLE_FACTOR
+    // Apply Loop subdivision instead of decimation
+    const int NUM_SUBDIVISIONS = 4; // Number of subdivision steps
+    Eigen::MatrixXd V_sub;
+    Eigen::MatrixXi F_sub;
+
+    // Apply Loop subdivision
+    igl::upsample(*V, *F, V_sub, F_sub, UPSAMPLE_FACTOR);
+    // Update V and F with the subdivided mesh
+    *V = V_sub;
+    *F = F_sub;
+
+    // Write to file
+    std::string output_file = "../data/rectangle_upsampled_" + std::to_string(UPSAMPLE_FACTOR) + ".off";
+    igl::write_triangle_mesh(output_file, V_sub, F_sub);
+    LOG("Subdivided mesh written to " << output_file);
+#endif
     V_rest = Eigen::MatrixXd(*V);
 
-    // Set only the y-coordinates to 0 for the undeformed mesh
-    Eigen::MatrixXd V_undef = V_rest; // Copy vertices
-    for (int i = 0; i < V_undef.rows(); ++i) {
-        V_undef(i, 1) = 0.0; // Set the y-coordinate (index 1) to 0
-    }
     N_VERTICES = V->rows();
     // TODO REMOVE THAT SHIT
     // Set massmatrix
     igl::massmatrix(V_rest, *F, igl::MASSMATRIX_TYPE_VORONOI, M);
-    // M.setIdentity();
+    M.setIdentity();
 
     // Set up the inverse of M
     // to avoid instability
@@ -354,12 +368,11 @@ void DiscreteShell::add_F_ext(Eigen::MatrixXd &_forces, int step) {
     // Just gravity for now
     // Substract gravity :
     Eigen::RowVector3d gravity(0, -9.81, 0);
-    for (int i = 0; i < V->rows(); i++) {
-        // _forces.row(i).y() -= 9.81;
-    }
+    // _forces.rowwise() += gravity / 2;
+    // _forces.row(3) = Eigen::RowVector3d(0, 0, 0);
     // Wind only on vertex 42
     Eigen::RowVector3d wind(0, 0, 10);
-    _forces.row(42) += wind;
+    _forces.row(1) += wind;
 }
 
 const Eigen::MatrixXd* DiscreteShell::getPositions() {

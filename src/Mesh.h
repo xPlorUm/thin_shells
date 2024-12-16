@@ -128,7 +128,7 @@ public:
         Scalar absAngle = angle > 0 ? angle : -angle;
         // Apply a threshold to determine if the edge is a crease
         //if (absAngle > plastic_deformation_threshold) {
-        //    stiffness(e_idx) = 0.5;
+    //    stiffness(e_idx) = 0.5;
         //}
 
         return angle;

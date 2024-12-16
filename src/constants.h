@@ -6,14 +6,15 @@
 #define THINSHELLS_CONSTANTS_H
 
 #define BENDING_STIFFNESS  10.0
-#define STRETCHING_STIFFNESS 1
+#define STRETCHING_STIFFNESS 10
 #define AREA_PRESERVATION_STIFFNESS 10
 #define DAMPING = 0.1
 
 // Define the number of faces igl will decimate the mesh into.
-#define N_FACES_MESH 400
+// #define DECIMATE_N_FACES_TARGET_MESH 400
+// #define UPSAMPLE_FACTOR 4
 
-#define TOLERANCE_NEWTON 1e-3
+#define TOLERANCE_NEWTON 1e-4
 #define MAX_ITERATIONS_NEWTON 100
 
 #define SIMULATION_DT 1
@@ -23,6 +24,7 @@
 // Enable or disable stretching forces in the newmark algorithm. Useful to debug some stuff.
 #define ENABLE_STRETCHING_FORCES true
 #define ENABLE_AREA_PRESERVATION_FORCES true
+#define ENABLE_BENDING_FORCES true
 
 #define APPLY_INITIAL_CHANGES(V) \
 /*

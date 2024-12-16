@@ -203,7 +203,6 @@ bool callback_pre_draw(Viewer &viewer) {
     } else {
         std::cout << "Saved frame " << filename << std::endl;
     }
-    std::cout << "Saved frame " << filename << std::endl;
 #endif
     return false;
 }

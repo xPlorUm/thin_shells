@@ -30,8 +30,12 @@ bool Solver::solve(Eigen::MatrixXd &Position_solution, Eigen::MatrixXd *Velocity
                     const Eigen::VectorXd &a_n,
                     const Eigen::VectorXd &f_ext_flatten) -> Eigen::VectorXd {
         // Step 1: Compute acceleration at n+1 using Newmark's formula
-        Eigen::VectorXd a_new =
-                (u_new - u_n - m_dt * v_n - (m_dt * m_dt) * (0.5 - m_beta) * a_n) / (m_beta * m_dt * m_dt);
+        Eigen::VectorXd a_new;
+        if (SIMULATION_NEWMARK_BETA == 0) {
+            a_new = a_n;
+        } else {
+            a_new = (u_new - u_n - m_dt * v_n - (m_dt * m_dt) * (0.5 - m_beta) * a_n) / (m_beta * m_dt * m_dt);
+        }
         // Step 2: Compute velocity at n+1 using Newmark's formula
         Eigen::VectorXd v_new = v_n + m_dt * ((1.0 - m_gamma) * a_n + m_gamma * a_new);
         // Step 3: Map u_new to Position matrix for force computation
@@ -43,8 +47,8 @@ bool Solver::solve(Eigen::MatrixXd &Position_solution, Eigen::MatrixXd *Velocity
             m_discreteshell->addStretchingForcesAndHessianTo_AD(f_int_matrix, HessianStretching, &u_new_matrix);
         if (ENABLE_AREA_PRESERVATION_FORCES)
             m_discreteshell->addAreaPreserationForcesAndHessianTo(f_int_matrix, HessianAreaPreserving, &u_new_matrix);
-
-        m_discreteshell->addBendingForcesAndHessianTo(f_int_matrix, HessianBending, &u_new_matrix);
+        if (ENABLE_BENDING_FORCES)
+            m_discreteshell->addBendingForcesAndHessianTo(f_int_matrix, HessianBending, &u_new_matrix);
         Eigen::VectorXd f_int = flatten_matrix(f_int_matrix);
         // Step 5: Compute residual: R = M * a_new + C * v_new + f_int - f_ext
         // As of now, damping matrix is a simple identity matrix SET TO ZERO
@@ -73,7 +77,9 @@ bool Solver::solve(Eigen::MatrixXd &Position_solution, Eigen::MatrixXd *Velocity
             systemMatrix += HessianAreaPreserving;
         }
         // Bending hessian is computed in the residual function. See comment of the variable
-        systemMatrix += HessianBending;
+        if (ENABLE_BENDING_FORCES) {
+            systemMatrix += HessianBending;
+        }
         systemMatrix += (*m_M_extended / (m_beta * (m_dt * m_dt))); //+ C * (m_gamma / (m_beta * m_dt));
         return systemMatrix;
     };
@@ -96,6 +102,13 @@ bool Solver::solve(Eigen::MatrixXd &Position_solution, Eigen::MatrixXd *Velocity
             std::cerr << "Linear solve failed!" << std::endl;
             break;
         }
+        // TODO REMOVE
+/*
+        delta_x(3 * 3) = 0;
+        delta_x(3 * 3 + 1) = 0;
+        delta_x(3 * 3 + 2) = 0;
+*/
+
         u_new -= delta_x;
         std::cout << "Iteration " << iter << ": delta_x norm = " << delta_x.norm() <<  " residual=" << residual_norm << std::endl;
     }
