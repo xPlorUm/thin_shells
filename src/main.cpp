@@ -24,7 +24,8 @@
 std::string PATH = "../data/";
 //string file = "paper-plane-subd.off";
 // std::string file = "twisted.off";
-std::string file = "woody-hi.off";
+//std::string file = "woody-hi.off";
+std::string file = "rectangle_upsampled_4.off";
 
 using namespace std;
 using namespace Eigen;
@@ -105,6 +106,7 @@ int main(int argc, char *argv[]) {
         }
     }
 #endif
+
 
     // Initialize Viewer
     viewer.data().clear();

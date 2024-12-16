@@ -294,20 +294,33 @@ void DiscreteShell::addBendingForcesAndHessianTo_internal(Eigen::MatrixXd &bendi
 
     //3 variables per vertex. Objective per edge, using 3 vertices each :
     auto func = TinyAD::scalar_function<3>(TinyAD::range(deformedMesh.V.rows()));
-    func.add_elements<2>(TinyAD::range(deformedMesh.uE.rows()), [&](auto &element) ->
+    func.add_elements<4>(TinyAD::range(deformedMesh.uE.rows()), [&](auto &element) ->
     TINYAD_SCALAR_TYPE(element)
     {
-        using T =
-        TINYAD_SCALAR_TYPE(element);
+        using T = TINYAD_SCALAR_TYPE(element);
         // Variables associated with the edge's vertices
         Eigen::Index edge_idx = element.handle;
         Eigen::RowVector3<T> v0 = element.variables(deformedMesh.uE(edge_idx, 0));
         Eigen::RowVector3<T> v1 = element.variables(deformedMesh.uE(edge_idx, 1));
+
+        // Get the indices of the adjacent faces
+        int face0 = deformedMesh.EF(edge_idx, 0);
+        int face1 = deformedMesh.EF(edge_idx, 1);
+
+        // Get the coner point adjacent to the edge
+        int temp0 = deformedMesh.EI(edge_idx, 0);
+        int temp1 = deformedMesh.EI(edge_idx, 1);
+        int c0_idx = deformedMesh.F(face0, temp0);
+        int c1_idx = deformedMesh.F(face1, temp1);
+
+        Eigen::RowVector3<T> corner0 = element.variables(c0_idx);
+        Eigen::RowVector3<T> corner1 = element.variables(c1_idx);
+
+
         // Compute dihedral angle, height, and norm
         double angle_u = deformedMesh.getDihedralAngles(edge_idx);
-        T angle_d = deformedMesh.computeDihedralAngle(v0, v1, edge_idx);
-        angle_d = deformedMesh.computeDihedralAngle(v0, v1, edge_idx);
-        T height = deformedMesh.computeHeight(v0, v1, edge_idx);
+        T angle_d = deformedMesh.computeDihedralAngle(v0, v1, corner0, corner1, edge_idx);
+        T height = deformedMesh.computeHeight(v0, v1, corner0, corner1, edge_idx);
         T norm = (v1 - v0).norm();
         double stiffness = 1.0f;
         // Edge Case
