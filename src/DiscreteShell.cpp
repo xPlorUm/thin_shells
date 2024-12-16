@@ -11,11 +11,14 @@ Maybe we should change the function names since they're currently the same as th
 #include <igl/edges.h> // Include this header to use igl::edges
 #include <igl/decimate.h>
 #include <filesystem>
+#include <igl/upsample.h>
+#include <igl/write_triangle_mesh.h>
 
 #include <TinyAD/ScalarFunction.hh>
 #include <TinyAD/Utils/NewtonDirection.hh>
 #include <TinyAD/Utils/NewtonDecrement.hh>
 #include <TinyAD/Utils/LineSearch.hh>
+#include <Eigen/Core>
 
 // Define a macro to enable/disable debug information
 // #define DEBUG_VERTEX 0
@@ -24,10 +27,9 @@ int num_steps = 0;
 
 // Constructor
 DiscreteShell::DiscreteShell()
-    : m_dt(SIMULATION_DT), simulation_duration(10.0),
-    // bending_stiffness(1.0),
-      m_beta(SIMULATION_NEWMARK_BETA), m_gamma(SIMULATION_NEWMARK_GAMMA)
-{
+        : m_dt(SIMULATION_DT), simulation_duration(10.0),
+        // bending_stiffness(1.0),
+          m_beta(SIMULATION_NEWMARK_BETA), m_gamma(SIMULATION_NEWMARK_GAMMA) {
     F = new Eigen::MatrixXi(0, 3);
     V = new Eigen::MatrixXd(0, 3);
     Velocity = new Eigen::MatrixXd(0, 3);
@@ -46,7 +48,7 @@ DiscreteShell::~DiscreteShell() {
 
 // Initialize from an OBJ file
 // Might do away with this and just pass in the mesh from main
-void DiscreteShell::initializeFromFile(const std::string& filename) {
+void DiscreteShell::initializeFromFile(const std::string &filename) {
     if (filename.empty()) {
         std::cerr << "Error: No file provided" << std::endl;
         return;
@@ -60,13 +62,11 @@ void DiscreteShell::initializeFromFile(const std::string& filename) {
     // Load mesh (vertices and faces)
     igl::read_triangle_mesh(filename, *V, *F);
 
-    *V *= 300;
-
     Eigen::VectorXi J; // Output mapping from F to simplified faces
 
     // Specify the target number of faces
 #ifdef DECIMATE_N_FACES_TARGET_MESH
-        igl::decimate(*V, *F, DECIMATE_N_FACES_TARGET_MESH, *V, *F, J);
+    igl::decimate(*V, *F, DECIMATE_N_FACES_TARGET_MESH, *V, *F, J);
 #endif
 #ifdef UPSAMPLE_FACTOR
     // Apply Loop subdivision instead of decimation
@@ -81,9 +81,9 @@ void DiscreteShell::initializeFromFile(const std::string& filename) {
     *F = F_sub;
 
     // Write to file
-    std::string output_file = "../data/rectangle_upsampled_" + std::to_string(UPSAMPLE_FACTOR) + ".off";
+    std::string output_file = "../data/rectangle_folded_upsampled_" + std::to_string(UPSAMPLE_FACTOR) + ".off";
     igl::write_triangle_mesh(output_file, V_sub, F_sub);
-    LOG("Subdivided mesh written to " << output_file);
+    std::cout << "Subdivided mesh written to " << output_file << std::endl;
 #endif
     V_rest = Eigen::MatrixXd(*V);
 
@@ -141,7 +141,8 @@ bool DiscreteShell::advanceOneStep(int step) {
     m_solver->solve(new_position, Velocity, Acceleration, V);
 
     Eigen::MatrixXd a_new_i =
-            (new_position - *V - m_dt * *Velocity - (m_dt * m_dt) * (0.5 - m_beta) * *Acceleration) / (m_beta * m_dt * m_dt);
+            (new_position - *V - m_dt * *Velocity - (m_dt * m_dt) * (0.5 - m_beta) * *Acceleration) /
+            (m_beta * m_dt * m_dt);
     Eigen::MatrixXd v_new = *Velocity + m_dt * ((1.0 - m_gamma) * *Acceleration + m_gamma * a_new_i);
 
     *V = new_position;
@@ -193,15 +194,14 @@ void DiscreteShell::addStretchingForcesAndHessianTo_AD_internal(Eigen::MatrixXd 
     //3 variables per vertex. Objective per edge, using 3 vertices each :
     auto func = TinyAD::scalar_function<3>(TinyAD::range(deformedMesh.V.rows()));
     func.add_elements<2>(TinyAD::range(deformedMesh.uE.rows()), [&](auto &element) ->
-            TINYAD_SCALAR_TYPE(element)
-    {
+            TINYAD_SCALAR_TYPE(element) {
         using T = TINYAD_SCALAR_TYPE(element);
         // Variables associated with the edge's vertices
         Eigen::Index edge_idx = element.handle;
         Eigen::RowVector3<T> v0 = element.variables(deformedMesh.E(edge_idx, 0));
         Eigen::RowVector3<T> v1 = element.variables(deformedMesh.E(edge_idx, 1));
         // Compute current length e
-        Eigen::Matrix<T,3,1> d = (v1 - v0).transpose();
+        Eigen::Matrix<T, 3, 1> d = (v1 - v0).transpose();
         T current_length = d.norm();
         T rest_length = T(deformedMesh.E_resting_lengths(edge_idx));
         T ratio = current_length / rest_length;
@@ -222,8 +222,7 @@ void DiscreteShell::addStretchingForcesAndHessianTo_AD_internal(Eigen::MatrixXd 
         f = f_;
         g = g_;
         H = H_t;
-    }
-    else {
+    } else {
         // Structured binding for the gradient-only case
         auto [f_, g_] = func.eval_with_gradient(x);
         // Assign to the pre-declared variables
@@ -252,8 +251,7 @@ void DiscreteShell::addAreaPreserationForcesAndHessianTo(Eigen::MatrixXd &forces
     //3 variables per vertex. Objective per edge, using 3 vertices each :
     auto func = TinyAD::scalar_function<3>(TinyAD::range(deformedMesh.V.rows()));
     func.add_elements<3>(TinyAD::range(deformedMesh.F.rows()), [&](auto &element) ->
-            TINYAD_SCALAR_TYPE(element)
-    {
+            TINYAD_SCALAR_TYPE(element) {
         using T = TINYAD_SCALAR_TYPE(element);
         // Variables associated with the edge's vertices
         Eigen::Index face_idcx = element.handle;
@@ -285,36 +283,37 @@ void DiscreteShell::addAreaPreserationForcesAndHessianTo(Eigen::MatrixXd &forces
 }
 
 
-void DiscreteShell::addBendingForcesAndHessianTo_internal(Eigen::MatrixXd &bending_forces, Eigen::SparseMatrix<double> &H,
-                                                          const Eigen::MatrixXd *V, bool computeHessian) {
-
+void
+DiscreteShell::addBendingForcesAndHessianTo_internal(Eigen::MatrixXd &bending_forces, Eigen::SparseMatrix<double> &H,
+                                                     const Eigen::MatrixXd *V, bool computeHessian) {
     // Upda the deformed mesh vertices to updated vertices. This could be a massive
     auto originalV = deformedMesh.V;
     deformedMesh.V = *V;
-
     //3 variables per vertex. Objective per edge, using 3 vertices each :
     auto func = TinyAD::scalar_function<3>(TinyAD::range(deformedMesh.V.rows()));
-    func.add_elements<2>(TinyAD::range(deformedMesh.uE.rows()), [&](auto &element) ->
-    TINYAD_SCALAR_TYPE(element)
-    {
+    func.add_elements<4>(TinyAD::range(deformedMesh.uE.rows()), [&](auto &element) ->
+            TINYAD_SCALAR_TYPE(element) {
         using T =
-        TINYAD_SCALAR_TYPE(element);
+                TINYAD_SCALAR_TYPE(element);
         // Variables associated with the edge's vertices
         Eigen::Index edge_idx = element.handle;
+
+        Eigen::RowVector3<T> opp0 = element.variables(
+                deformedMesh.F(deformedMesh.EF(edge_idx, 0), deformedMesh.EI(edge_idx, 0)));
+        Eigen::RowVector3<T> opp1 = element.variables(
+                deformedMesh.F(deformedMesh.EF(edge_idx, 1), deformedMesh.EI(edge_idx, 1)));
         Eigen::RowVector3<T> v0 = element.variables(deformedMesh.uE(edge_idx, 0));
         Eigen::RowVector3<T> v1 = element.variables(deformedMesh.uE(edge_idx, 1));
         // Compute dihedral angle, height, and norm
         double angle_u = deformedMesh.getDihedralAngles(edge_idx);
-        T angle_d = deformedMesh.computeDihedralAngle(v0, v1, edge_idx);
-        angle_d = deformedMesh.computeDihedralAngle(v0, v1, edge_idx);
-        T height = deformedMesh.computeHeight(v0, v1, edge_idx);
+        T angle_d = deformedMesh.computeDihedralAngle(v0, v1, edge_idx, opp0, opp1);
+        T height = deformedMesh.computeHeight(v0, v1, edge_idx, opp0, opp1);
         T norm = (v1 - v0).norm();
-        double stiffness = 1.0f;
         // Edge Case
         if (height <= Epsilon)
-            return (T) 0.0;
+            return (T) 0;
         // Compute bending energy for this edge
-        T bending_energy = BENDING_STIFFNESS * ((angle_u - angle_d) * (angle_u - angle_d) * norm * stiffness) / height;
+        T bending_energy = BENDING_STIFFNESS * ((angle_u - angle_d) * (angle_u - angle_d) * norm * deformedMesh.stiffness(edge_idx)) / height;
         return bending_energy;
     });
 
@@ -332,8 +331,7 @@ void DiscreteShell::addBendingForcesAndHessianTo_internal(Eigen::MatrixXd &bendi
         f = f_;
         g = g_;
         H = H_t;
-    }
-    else {
+    } else {
         // Structured binding for the gradient-only case
         auto [f_, g_] = func.eval_with_gradient(x);
         // Assign to the pre-declared variables
@@ -358,28 +356,20 @@ void DiscreteShell::addBendingForcesTo(Eigen::MatrixXd &bending_forces, const Ei
 }
 
 void DiscreteShell::addBendingForcesAndHessianTo(Eigen::MatrixXd &bending_forces,
-                                                          Eigen::SparseMatrix<double> &H, const Eigen::MatrixXd *V) {
+                                                 Eigen::SparseMatrix<double> &H, const Eigen::MatrixXd *V) {
     addBendingForcesAndHessianTo_internal(bending_forces, H, V, true);
 }
 
 
-
 void DiscreteShell::add_F_ext(Eigen::MatrixXd &_forces, int step) {
-    // Just gravity for now
-    // Substract gravity :
-    Eigen::RowVector3d gravity(0, -9.81, 0);
-    // _forces.rowwise() += gravity / 2;
-    // _forces.row(3) = Eigen::RowVector3d(0, 0, 0);
-    // Wind only on vertex 42
-    Eigen::RowVector3d wind(0, 0, 10);
-    _forces.row(1) += wind;
+    add_F_ext_internal(_forces, step);
 }
 
-const Eigen::MatrixXd* DiscreteShell::getPositions() {
+const Eigen::MatrixXd *DiscreteShell::getPositions() {
     return V;
 }
 
-const Eigen::MatrixXi* DiscreteShell::getFaces() {
+const Eigen::MatrixXi *DiscreteShell::getFaces() {
     return F;
 }
 

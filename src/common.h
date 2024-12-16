@@ -13,7 +13,7 @@
 #define PRINT_FLAT_VECTOR(vec) std::cout << #vec << "\n" << deflatten_vector(vec) << std::endl;
 #define PRINT_MATRIX(vec) std::cout << #vec << "\n" << vec << std::endl;
 // I hate typing std::cout and std::endl
-#define LOG(x) std::cout << x << std::endl;
+#define PRINT_VAR(x) std::cout << #x << " " << x << std::endl;
 
 
 inline void pretty_print_vector(const Eigen::VectorXd& v) {

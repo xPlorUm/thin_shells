@@ -15,10 +15,15 @@ Mesh::Mesh() {
 Mesh::Mesh(Eigen::MatrixXd V_, const Eigen::MatrixXi &F_, const Eigen::MatrixXi &E_)
         : V(std::move(V_)), F(F_), E(E_) {
     igl::edge_flaps(F, uE, EMAP, EF, EI); // Compute the edges and the edge-face incidence
-    calculateAllDihedralAngles(dihedralAngles);
-    // set stiffness to 1 for all edges
+    VVE = Eigen::MatrixXi::Zero(V.rows(), V.rows());
+    for (int i = 0; i < uE.rows(); i++) {
+        VVE(uE(i, 0), uE(i, 1)) = i;
+        VVE(uE(i, 1), uE(i, 0)) = i;
+    }
     stiffness = Eigen::VectorXd(uE.rows());
     stiffness.setOnes();
+    calculateAllDihedralAngles(dihedralAngles);
+    // set stiffness to 1 for all edges
     // Edge length :
     igl::edge_lengths(V, E, E_resting_lengths);
     // Compute all resting faces area
@@ -26,6 +31,7 @@ Mesh::Mesh(Eigen::MatrixXd V_, const Eigen::MatrixXi &F_, const Eigen::MatrixXi 
     for (int i = 0; i < F.rows(); i++) {
         F_resting_areas(i) = computeArea(V.row(F(i, 0)), V.row(F(i, 1)), V.row(F(i, 2)));
     }
+
 }
 
 
@@ -48,9 +54,15 @@ void Mesh::calculateAllDihedralAngles(Eigen::VectorXd &angles) {
         double angle = acos(cos);
         angles(i) = angle;
     }
+
+    // Set the dihedral angle of the edge 111-113 to 90 degrees
+    // angles(VVE(111, 113)) = PI / 2;
+    // stiffness[VVE(111, 113)] = 50;
 }
 
-
+/**
+ * Get the precomputed dihedral angles of the edge at idx
+ */
 double Mesh::getDihedralAngles(int idx) {
     return dihedralAngles[idx];
 }

@@ -36,6 +36,7 @@ public:
     Eigen::MatrixXi EF; // Edge-to-face incidence matrix (#uE, 2)
     Eigen::MatrixXi EI; // Edge-to-vertex incidence matrix (#uE, 2)
     Eigen::MatrixXi E; // Edges of the mesh (#E, 2)
+    Eigen::MatrixXi VVE; // Vertex-to-vertex adjacency matrix (#V, #V), indicating the number of edges between each pair of vertices
     Eigen::VectorXd E_resting_lengths; // Resting lengths of the edges (#E, 1)
     Eigen::VectorXd F_resting_areas; // Resting areas of the faces (#F, 1)
 
@@ -53,7 +54,8 @@ public:
 
     // Computes the height of the given 2 vertices and the index of the undirected edge
     template<typename Scalar>
-    Scalar computeHeight(Eigen::Matrix<Scalar, 1, 3> &v0, Eigen::Matrix<Scalar, 1, 3> &v1, int e_idx) {
+    Scalar computeHeight(Eigen::Matrix<Scalar, 1, 3> &v0, Eigen::Matrix<Scalar, 1, 3> &v1, int e_idx,
+                         Eigen::Matrix<Scalar, 1, 3> &corner0, Eigen::Matrix<Scalar, 1, 3> &corner1) {
         if (EF(e_idx, 1) == -1 || EF(e_idx, 0) == -1) { //boundary edge
             return 0.0f;
         }
@@ -65,9 +67,6 @@ public:
         // Get the coner point adjacent to the edge
         int corner0I = EI(e_idx, 0);
 
-        Eigen::Matrix<Scalar, 1, 3> corner0 = V.row(F(face0, EI(e_idx, 0))).template cast<Scalar>();
-        Eigen::Matrix<Scalar, 1, 3> corner1 = V.row(F(face1, EI(e_idx, 1))).template cast<Scalar>();
-
         Scalar height0 = computeFaceHeight(v0, v1, corner0);
         Scalar height1 = computeFaceHeight(v0, v1, corner1);
 
@@ -78,8 +77,8 @@ public:
 
     // Computes the dihedral angle of the given 2 vertices and the index of the undirected edge
     template<typename Scalar>
-    Scalar computeDihedralAngle(Eigen::Matrix<Scalar, 1, 3> &v0,
-                                Eigen::Matrix<Scalar, 1, 3> &v1, int e_idx) {
+    Scalar computeDihedralAngle(Eigen::Matrix<Scalar, 1, 3> &v0, Eigen::Matrix<Scalar, 1, 3> &v1, int e_idx,
+                                Eigen::Matrix<Scalar, 1, 3> &corner0, Eigen::Matrix<Scalar, 1, 3> &corner1) {
         if (EF(e_idx, 1) == -1 || EF(e_idx, 0) == -1) { //boundary edge
             return 0.0f;
         }
@@ -92,12 +91,6 @@ public:
 
         // Check that the orientation of the normals are the same
         int v0idx = uE(e_idx, 0);
-        int v1idx = uE(e_idx, 1);
-
-
-        // Get the coner point adjacent to the edge
-        Eigen::Matrix<Scalar, 1, 3> corner0 = V.row(F(face0, EI(e_idx, 0))).template cast<Scalar>();
-        Eigen::Matrix<Scalar, 1, 3> corner1 = V.row(F(face1, EI(e_idx, 1))).template cast<Scalar>();
 
         if (F(face0, (EI(e_idx, 0) + 1) % 3) == v0idx) {
             computeNormal(v0, v1, corner0, n0);
@@ -108,7 +101,6 @@ public:
 
         }
 
-
         Scalar cos = n0.dot(n1);
 
         // get the smaller angle of the dotproduct
@@ -118,7 +110,6 @@ public:
 
         // Compute the angle in radians
         Scalar angle = acos(cos);
-
 
         // Ensure the smaller angle is chosen
         if (angle > PI / 2) {
@@ -146,7 +137,6 @@ private:
 
         Eigen::Matrix<Scalar, 1, 3> edge1 = v1 - v0;
         Eigen::Matrix<Scalar, 1, 3> edge2 = v2 - v0;
-
         res = edge1.cross(edge2).normalized();
     }
 

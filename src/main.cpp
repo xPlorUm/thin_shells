@@ -220,9 +220,8 @@ bool callback_mouse_down(Viewer &viewer, int button, int modifier) {
                                  bc)) {
         // paint hit red
         bc.maxCoeff(&vi);
-        vi = (*ds.getFaces())(fid, vi);
-        // Get the closest edge
 
+        vi = ds.getFaces()->row(fid)(vi);
     }
     if (vi == -1) {
         return false;
