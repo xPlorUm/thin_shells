@@ -12,8 +12,6 @@
 #include <utility>
 #include "constants.h"
 
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "libs/stb_image_write.h"
 // #include <igl/png/.h>
 
 //activate this for alternate UI (easier to debug but no interactive updates, turn this OFF for your report)

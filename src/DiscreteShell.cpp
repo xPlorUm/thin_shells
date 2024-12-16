@@ -364,6 +364,8 @@ void DiscreteShell::addBendingForcesAndHessianTo_internal(Eigen::MatrixXd &bendi
     deformedMesh.V = originalV;
 }
 
+
+
 void DiscreteShell::addBendingForcesTo(Eigen::MatrixXd &bending_forces, const Eigen::MatrixXd *V) {
     // Dummy parameter
     Eigen::SparseMatrix<double> t = Eigen::SparseMatrix<double>(V->rows() * 3, V->rows() * 3);
