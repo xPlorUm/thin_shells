@@ -11,8 +11,7 @@
 #include <memory>
 #include <utility>
 #include "constants.h"
-
-// #include <igl/png/.h>
+#include <igl/png/readPNG.h>
 
 //activate this for alternate UI (easier to debug but no interactive updates, turn this OFF for your report)
 //#define UPDATE_ONLY_ON_UP
@@ -119,6 +118,36 @@ int main(int argc, char *argv[]) {
     igl::opengl::glfw::imgui::ImGuiMenu menu;
     plugin.widgets.push_back(&menu);
     anim_t += step_size;
+
+    // Texture mapping
+    Eigen::MatrixXd UV(V->rows(), 2);
+    //TODO to initialize
+    double min_x = V->col(0).minCoeff(); // Minimum x value in V
+    double max_x = V->col(0).maxCoeff(); // Maximum x value in V
+    double min_y = V->col(1).minCoeff(); // Minimum y value in V
+    double max_y = V->col(1).maxCoeff(); // Maximum y value in V
+
+    // Normalize the vertex positions to the [0, 1] range for UV mapping
+    for (int i = 0; i < V->rows(); ++i) {
+        double u = (V->coeff(i, 0) - min_x) / (max_x - min_x); // Normalize x to u
+        double v = (V->coeff(i, 1) - min_y) / (max_y - min_y); // Normalize y to v
+        UV(i, 0) = u; // Set u
+        UV(i, 1) = v; // Set v
+    }
+
+    // Set UV coordinates in viewer
+    viewer.data().set_uv(UV);
+
+    Eigen::Matrix<unsigned char, Eigen::Dynamic, Eigen::Dynamic> R, G, B, A;
+    std::string texture_file = PATH + "textures/discrete_shell_txt.png";
+    if (!igl::png::readPNG(texture_file, R, G, B, A)) {
+        std::cerr << "Failed to load texture: " << texture_file << std::endl;
+        return false;
+    }
+
+    // Assign texture
+    viewer.data().set_texture(R, G, B, A);
+    viewer.data().show_texture = true;
 
 
     //define the User Interface

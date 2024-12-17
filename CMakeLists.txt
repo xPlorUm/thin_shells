@@ -22,13 +22,22 @@ igl_include(png)
 # Add autodiff to the project
 add_subdirectory(autodiff)  # Replace with the actual path where autodiff is located
 
+include_directories(
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/include/stb
+    SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/include/TinyAD
+)
+
+
 # Add your project files
 FILE(GLOB SRCFILES src/*.cpp)
 add_executable(${PROJECT_NAME} ${SRCFILES}
         src/utils.h
         src/constants.h
+        src/DiscreteShell.h
+        src/Mesh.h
+        src/Solver.h
 )
-#target_link_libraries(${PROJECT_NAME} igl::core igl::imgui igl::glfw)
 
 # Link libigl and autodiff libraries to your project
 target_link_libraries(${PROJECT_NAME} 

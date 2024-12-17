@@ -12,10 +12,10 @@ Maybe we should change the function names since they're currently the same as th
 #include <igl/decimate.h>
 #include <filesystem>
 
-#include <TinyAD/ScalarFunction.hh>
-#include <TinyAD/Utils/NewtonDirection.hh>
-#include <TinyAD/Utils/NewtonDecrement.hh>
-#include <TinyAD/Utils/LineSearch.hh>
+#include <ScalarFunction.hh>
+#include <Utils/NewtonDirection.hh>
+#include <Utils/NewtonDecrement.hh>
+#include <Utils/LineSearch.hh>
 
 // Define a macro to enable/disable debug information
 // #define DEBUG_VERTEX 0
