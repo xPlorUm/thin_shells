@@ -56,9 +56,9 @@ bool Solver::solve(Eigen::MatrixXd &Position_solution, Eigen::MatrixXd *Velocity
         return residual;
     };
 
-    Eigen::VectorXd Position_i_flatten = flatten_matrix(*Position_i);
-    Eigen::VectorXd Velocity_i_flatten = flatten_matrix(*Velocity_i);
-    Eigen::VectorXd Acceleration_i_flatten = flatten_matrix(*Acceleration_i);
+    const Eigen::VectorXd Position_i_flatten = flatten_matrix(*Position_i);
+    const Eigen::VectorXd Velocity_i_flatten = flatten_matrix(*Velocity_i);
+    const Eigen::VectorXd Acceleration_i_flatten = flatten_matrix(*Acceleration_i);
     // Initial guess. u_new is the iterative guessed variable.
     Eigen::VectorXd u_new = Position_i_flatten;
 
@@ -88,8 +88,8 @@ bool Solver::solve(Eigen::MatrixXd &Position_solution, Eigen::MatrixXd *Velocity
     std::cout << "-----------------------------" << std::endl;
     for(int iter = 0; iter < MAX_ITERATIONS_NEWTON; iter++) {
         Eigen::VectorXd residual = R(u_new, Position_i_flatten, Velocity_i_flatten, Acceleration_i_flatten, f_ext_flatten);
-        double residual_norm = residual.norm();
-        if (residual_norm < TOLERANCE_NEWTON) {
+        double residual_squared_norm = residual.squaredNorm();
+        if (residual_squared_norm < TOLERANCE_NEWTON) {
             Eigen::MatrixXd sol = deflatten_vector(u_new);
             Position_solution = sol;
             std::cout << "Converged in " << iter << " iterations,  Δx (correction) : " << (u_new - Position_i_flatten).norm() << std::endl;
@@ -102,21 +102,53 @@ bool Solver::solve(Eigen::MatrixXd &Position_solution, Eigen::MatrixXd *Velocity
             std::cerr << "Linear solve failed!" << std::endl;
             break;
         }
-        // TODO REMOVE
-/*
-        delta_x(3 * 3) = 0;
-        delta_x(3 * 3 + 1) = 0;
-        delta_x(3 * 3 + 2) = 0;
-*/
 
-        u_new -= delta_x;
-        std::cout << "Iteration " << iter << ": delta_x norm = " << delta_x.norm() <<  " residual=" << residual_norm << std::endl;
+#ifdef USE_AMIJO
+        const double alpha_initial = 4.0;      // Initial step size
+        const double alpha_min = 0.25;         // Minimum step size
+        const double rho = 0.8;                // Step size reduction factor
+        const double c = 0.1;                  // Armijo condition constant
+        // Initialize step size
+        double alpha = alpha_initial;
+        Eigen::VectorXd u_trial;
+        // Backtracking loop
+        int i = 10;
+        // ref : https://math.stackexchange.com/questions/972890/how-to-find-the-gradient-of-norm-square
+        Eigen::VectorXd gradient_squared_norm_residual = 2 * systemMatrix * residual;
+        while (alpha >= alpha_min || i--) {
+            u_trial = u_new - alpha * delta_x;
+            // Compute new residual with u_trial
+            Eigen::VectorXd residual_trial = R(u_trial, Position_i_flatten, Velocity_i_flatten, Acceleration_i_flatten, f_ext_flatten);
+            double lhs = residual_squared_norm - residual_trial.squaredNorm();
+            double rhs = alpha * c * gradient_squared_norm_residual.dot(delta_x);
+            // PRINT_VAR(gradient_squared_norm_residual.dot(delta_x))
+            // PRINT_VAR(lhs)
+            // PRINT_VAR(rhs)
+            if (lhs >= 0) {
+                break; // Sufficient decrease achieved
+            }
+            alpha *= rho; // Reduce step size
+        }
+
+        if (alpha < alpha_min) {
+            std::cerr << "Armijo condition not satisfied. Line search failed at iteration " << iter << "." << std::endl;
+            alpha = 1;
+        }
+#endif
+        // Update the guess with the accepted step
+#ifndef USE_AMIJO
+        const double alpha = 1;
+        // delta_x(0) = 0;
+        // delta_x(1) = 0;
+        // delta_x(2) = 0;
+        u_new -=  alpha * delta_x;
+        std::cout << "Iteration " << iter << ": Step size = " << alpha << ", Update norm = " << (alpha * delta_x).norm()
+                  << " residual squared norm : " << residual_squared_norm << std::endl;
+#endif
     }
     std::cerr << "Did not converge!" << std::endl;
     return false;
 }
-
-
 
 bool Solver::linearSolve(const Eigen::SparseMatrix<double> &systemMatrix,
                          const Eigen::VectorXd &rhs,
