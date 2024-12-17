@@ -36,6 +36,7 @@ public:
     Eigen::MatrixXi EF; // Edge-to-face incidence matrix (#uE, 2)
     Eigen::MatrixXi EI; // Edge-to-vertex incidence matrix (#uE, 2)
     Eigen::MatrixXi E; // Edges of the mesh (#E, 2)
+    Eigen::MatrixXi VVE; // Vertex-to-vertex adjacency matrix (#V, #V), indicating the number of edges between each pair of vertices
     Eigen::VectorXd E_resting_lengths; // Resting lengths of the edges (#E, 1)
     Eigen::VectorXd F_resting_areas; // Resting areas of the faces (#F, 1)
 
@@ -82,8 +83,6 @@ public:
 
         // Check that the orientation of the normals are the same
         int v0idx = uE(e_idx, 0);
-        int v1idx = uE(e_idx, 1);
-
 
         Eigen::Matrix<Scalar, 1, 3> n0, n1;
         if (F(face0, (EI(e_idx, 0) + 1) % 3) == v0idx) {
@@ -95,7 +94,6 @@ public:
 
         }
 
-
         Scalar cos = n0.dot(n1);
 
         // get the smaller angle of the dotproduct
@@ -105,7 +103,6 @@ public:
 
         // Compute the angle in radians
         Scalar angle = acos(cos);
-
 
         // Ensure the smaller angle is chosen
         if (angle > PI / 2) {
@@ -133,7 +130,6 @@ private:
 
         Eigen::Matrix<Scalar, 1, 3> edge1 = v1 - v0;
         Eigen::Matrix<Scalar, 1, 3> edge2 = v2 - v0;
-
         res = edge1.cross(edge2).normalized();
     }
 
