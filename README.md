@@ -6,53 +6,38 @@ Additionally automatic differentiation tools from TinyAD are used for simplifyin
 
 ## Project Structure
 ```
-src/
-│
-├── datasets/
-│   └── load_datasets.py          # Dataset loading and task splitting logic
-│
-├── models/
-│   └── resnet.py                 # Define ResNet or other models
-│
-├── replay_buffer/
-│   └── fifo_replay_buffer.py     # ReplayBuffer class (shared across all strategies)
-│
-├── training_strategies/
-│   ├── base_strategy.py             # Base training class
-│   ├── goldilock_strategy.py        # Goldilock-based training
-│   ├── goldilock_v2_strategy.py     # Fast Goldilock-based training using predicted learning-speeds 
-│   ├── weighted_buffer_strategy.py  # Weighted Replaybuffer training
-│   └── replaybuffer_strategy.py     # Replaybuffer based training
-│
-├── evaluation_methods/
-│   └── basic_plots.py            # Evaluation scripts for testing performance
-│
-├── results/
-│   └── logs/                     # Training logs and metrics
-│   └── plots/                    # Visualization of results
-│
-├── requirement.txt               # Main entry point for the project
-├── main.py                       # Main entry point for the project
-└── README.md                     # Project description and usage (This file!)
+thin_shells/
+├── CMakeLists.txt
+├── src/
+│   ├── constants.h              # Header file defining project constants
+│   ├── DiscreteShell.cpp        # Implementation of the Discrete Shell class
+│   ├── DiscreteShell.h          # Header file for the Discrete Shell class
+│   ├── main.cpp                 # Main program entry point
+│   ├── Mesh.cpp                 # Implementation of the Mesh class
+│   ├── Mesh.h                   # Header file for the Mesh class
+│   ├── Solver.cpp               # Implementation of the Solver class
+│   ├── Solver.h                 # Header file for the Solver class
+│   └── utils.h                  # Utility functions for common tasks
+├── tinyAD/                 # Contain external libraries for automatic differentiation
+├── stb/                    # Contain external libraries for .PNG related code
+├── autodiff/               # Contain external libraries for automatic differentiation
+├── build/
+│   └── ...
+├── docs/               # Contain used papers or a summary of the paper used
+└── README.md
 ```
-## Features
-- Replay Buffer: Implements a replay buffer to store and sample data for training to help with catastrophic forgetting in continual learning scenarios.
-- Multiple Training Strategies:
-    - BaseStrategy: A basic strategy for training the model without using a replay buffer.
-    - ReplayBufferStrategy: A strategy that uses the replay buffer to store past experiences and alleviate forgetting.
-    - GoldilockStrategy: A strategy based on the learning speed of different tasks to determine which data should be added to the buffer.
-    - WeightedStrategy: A strategy based on the learning speed. slower learning speed examples have higher sampling weight
-- Models: The project includes the ResNet18 and ResNet34 architectures for the model.
-- Logging: All results and training logs are saved in the results/log/ directory.
-- Evaluation: The model is evaluated based on test loss and accuracy after each task and training loss for each epoch.
-
-## Installation
+## Installation Windows
 1. Clone this repository:
 ```
 git clone <repository_url>
 cd <repository_name>
 ```
-2. Build the project using cmake:
+2. Build the project using cmake GUI (working version 3.31.2):
+3. Configure and Generate 
+4. Open thinshells.sln with Visual Studio 2017 or higher
+5. In Visual Studio open configure Startup Projects, and define thinshells.sln file as single startup project.
+
+## Installation Linux
 ```
 mkdir build
 cd build
@@ -60,16 +45,25 @@ cmake ..
 make 
 ```
 
-## Usage
+## Usage Windows
 To run the program, use the following commands:
 ```
-
+1. Use Visual Studio Interface to start up the project in Release mode.
+2. press " " to start the simulation.
 ```
 To run the program with a specific mesh:
 ```
+1. in main.cpp line 23 change the string filename to a certain "<filename>.off" file in the data folder.
+ATTENTION!: read important information first
+2. press " " to start the simulation.
 ```
+
 ### Arguments
-- `--dataset`: The dataset to use. Options: CIFAR-10, CIFAR-100, TinyImagenet.
+First argument also defines the "<filename>.off" which is to be run, otherwise it just takes a simple flat rectangle mesh as starting point.
 
 
+## Important information
+
+The simulation does not work for meshes which are not flat when reading the file. 
+I.e. twisted.off and rectangle_folded.off are examples which do not work.
 
