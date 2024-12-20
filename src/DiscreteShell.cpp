@@ -111,13 +111,13 @@ void DiscreteShell::initializeFromFile(const std::string &filename) {
     // For paper, might be an okay assumption
     E_length_rest.resize(E->rows());
     for (int i = 0; i < E->rows(); i++) {
-        // Get the indices of the two vertices of the edge
+
         int v1 = (*E)(i, 0);
         int v2 = (*E)(i, 1);
-        // Get the positions of the two vertices
+
         Eigen::Vector3d p1 = V->row(v1);
         Eigen::Vector3d p2 = V->row(v2);
-        // Compute the rest length of the edge
+
         E_length_rest(i) = (p2 - p1).norm();
     }
 
@@ -137,7 +137,6 @@ void DiscreteShell::initializeFromFile(const std::string &filename) {
 bool DiscreteShell::advanceOneStep(int step) {
     // Compute acceleration
     Eigen::MatrixXd new_position = Eigen::MatrixXd::Zero(V->rows(), 3);
-    // PRINT_VECTOR(acceleration)
     m_solver->solve(new_position, Velocity, Acceleration, V);
 
     Eigen::MatrixXd a_new_i =
@@ -186,8 +185,6 @@ void DiscreteShell::computeDampingForces(Eigen::MatrixX3d &damping_forces) {
 
 void DiscreteShell::addStretchingForcesAndHessianTo_AD_internal(Eigen::MatrixXd &forces, Eigen::SparseMatrix<double> &H,
                                                                 const Eigen::MatrixXd *V, bool computeHessian) {
-    //3 variables per vertex. Objective per edge, using 3 vertices each :
-    // Upda the deformed mesh vertices to updated vertices. This could be a massive
     auto originalV = deformedMesh.V;
     deformedMesh.V = *V;
 
@@ -229,9 +226,6 @@ void DiscreteShell::addStretchingForcesAndHessianTo_AD_internal(Eigen::MatrixXd 
         f = f_;
         g = g_;
     }
-    // We get the output force f, the gradient g and the Hessian H
-    // With the Hessian H it is way slower now
-    //auto [f, g, H] = func.eval_with_hessian_proj(x);
     for (int vertex_idx = 0; vertex_idx < g.size() / 3; vertex_idx++) {
         forces.row(vertex_idx) += g.segment<3>(3 * vertex_idx);
     }
@@ -243,12 +237,9 @@ void DiscreteShell::addStretchingForcesAndHessianTo_AD_internal(Eigen::MatrixXd 
 
 void DiscreteShell::addAreaPreserationForcesAndHessianTo(Eigen::MatrixXd &forces, Eigen::SparseMatrix<double> &H,
                                                          const Eigen::MatrixXd *V) {
-    //3 variables per vertex. Objective per edge, using 3 vertices each :
-    // Upda the deformed mesh vertices to updated vertices. This could be a massive
     auto originalV = deformedMesh.V;
     deformedMesh.V = *V;
 
-    //3 variables per vertex. Objective per edge, using 3 vertices each :
     auto func = TinyAD::scalar_function<3>(TinyAD::range(deformedMesh.V.rows()));
     func.add_elements<3>(TinyAD::range(deformedMesh.F.rows()), [&](auto &element) ->
             TINYAD_SCALAR_TYPE(element) {
@@ -286,10 +277,9 @@ void DiscreteShell::addAreaPreserationForcesAndHessianTo(Eigen::MatrixXd &forces
 void
 DiscreteShell::addBendingForcesAndHessianTo_internal(Eigen::MatrixXd &bending_forces, Eigen::SparseMatrix<double> &H,
                                                      const Eigen::MatrixXd *V, bool computeHessian) {
-    // Upda the deformed mesh vertices to updated vertices. This could be a massive
     auto originalV = deformedMesh.V;
     deformedMesh.V = *V;
-    //3 variables per vertex. Objective per edge, using 3 vertices each :
+
     auto func = TinyAD::scalar_function<3>(TinyAD::range(deformedMesh.V.rows()));
     func.add_elements<4>(TinyAD::range(deformedMesh.uE.rows()), [&](auto &element) ->
     TINYAD_SCALAR_TYPE(element)
@@ -298,7 +288,8 @@ DiscreteShell::addBendingForcesAndHessianTo_internal(Eigen::MatrixXd &bending_fo
         // Variables associated with the edge's vertices
         Eigen::Index edge_idx = element.handle;
 
-        if (deformedMesh.EF(edge_idx, 1) == -1 || deformedMesh.EF(edge_idx, 0) == -1) { //boundary edge
+        // For a bounding edge the derivative will be equal to 0
+        if (deformedMesh.EF(edge_idx, 1) == -1 || deformedMesh.EF(edge_idx, 0) == -1) {
             return 0.0f;
         }
 
@@ -338,8 +329,8 @@ DiscreteShell::addBendingForcesAndHessianTo_internal(Eigen::MatrixXd &bending_fo
     });
 
 
-    double f;                          // Assuming f is a double
-    Eigen::VectorXd g;                 // Assuming g is an Eigen vector
+    double f;
+    Eigen::VectorXd g;
     if (computeHessian) {
         // Structured binding to unpack the tuple
         auto [f_, g_, H_t] = func.eval_with_hessian_proj(x);
@@ -353,9 +344,6 @@ DiscreteShell::addBendingForcesAndHessianTo_internal(Eigen::MatrixXd &bending_fo
         f = f_;
         g = g_;
     }
-    // We get the output force f, the gradient g and the Hessian H
-    // With the Hessian H it is way slower now
-    //auto [f, g, H] = func.eval_with_hessian_proj(x);
     for (int vertex_idx = 0; vertex_idx < g.size() / 3; vertex_idx++) {
         bending_forces.row(vertex_idx) += g.segment<3>(3 * vertex_idx);
     }
@@ -365,9 +353,7 @@ DiscreteShell::addBendingForcesAndHessianTo_internal(Eigen::MatrixXd &bending_fo
 }
 
 
-
 void DiscreteShell::addBendingForcesTo(Eigen::MatrixXd &bending_forces, const Eigen::MatrixXd *V) {
-    // Dummy parameter
     Eigen::SparseMatrix<double> t = Eigen::SparseMatrix<double>(V->rows() * 3, V->rows() * 3);
     addBendingForcesAndHessianTo_internal(bending_forces, t, V, false);
 }

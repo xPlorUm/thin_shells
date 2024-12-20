@@ -20,9 +20,6 @@
 #include <string.h>
 
 std::string PATH = "../data/";
-// string file = "paper-plane-subd.off";
-// std::string file = "twisted.off";
-// std::string file = "woody-hi.off";
 std::string file = "rectangle_upsampled_4.off";
 
 using namespace std;
@@ -122,8 +119,6 @@ int main(int argc, char *argv[]) {
 
     //define the User Interface
     menu.callback_draw_viewer_menu = [&]() {
-        // Draw parent menu content (optional, can be commented out)
-        // menu.draw_viewer_menu();
 
         // Add a button to start/stop the animation
         if (ImGui::Button(animation ? "Stop Animation" : "Start Animation")) {
@@ -153,13 +148,12 @@ bool callback_pre_draw(Viewer &viewer) {
         ds.advanceOneStep(begin_step);
         anim_t += step_size;
     }
-    // add time_step
-    // set value of Mesh to V
     viewer.data().clear();
     // Draw the discrete shell
     auto V = ds.getPositions();
     auto F = ds.getFaces();
     viewer.data().set_mesh(*V, *F);
+    viewer.core().align_camera_center(*V);
 
     // Save frame if requested
 #if SAVE_FRAMES == 1

@@ -55,9 +55,6 @@ void Mesh::calculateAllDihedralAngles(Eigen::VectorXd &angles) {
         angles(i) = angle;
     }
 
-    // Set the dihedral angle of the edge 111-113 to 90 degrees
-    // angles(VVE(111, 113)) = PI / 2;
-    // stiffness[VVE(111, 113)] = 50;
 }
 
 /**

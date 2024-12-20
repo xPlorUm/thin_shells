@@ -116,7 +116,7 @@ private:
     Eigen::MatrixXi *E; // Edges of the shell
     Eigen::VectorXd E_length_rest; // Rest length of edges
     Eigen::SparseMatrix<double> M; // Massmatrix
-    Eigen::SparseMatrix<double> M_i;
+    Eigen::SparseMatrix<double> M_i; // Massmatrix inverted
     Eigen::MatrixXd forces; // Forces applied point-wise.
     Eigen::MatrixX3d bending_forces; // Bending forces applied point-wise.
     int k_membrane = 10; // Membrane stiffness
