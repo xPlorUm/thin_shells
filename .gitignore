@@ -19,7 +19,7 @@ build/
 # Mono auto generated files
 mono_crash.*
 
-# Build results
+# Build rescmakelistults
 [Dd]ebug/
 [Dd]ebugPublic/
 [Rr]elease/
@@ -366,4 +366,5 @@ MigrationBackup/
 FodyWeavers.xsd
 
 .idea/
-cmake-build-debug/
+/cmake-build-debug/
+/build/
