@@ -27,14 +27,6 @@
 #define ENABLE_BENDING_FORCES true
 
 #define APPLY_INITIAL_CHANGES(V) \
-/*
-    (V)->row(0)      += Eigen::Vector3d(0.0, 0.0, 30.0); \
-    (V)->row(1)      += Eigen::Vector3d(0.0, 0.0, 30.0); \
-    (V)->row(2)      += Eigen::Vector3d(0.0, 0.0, 30.0);
-    (V)->row(14).z() += 30; \
-    (V)->row(42)     += Eigen::Vector3d(0.0, 0.0, 30.0); \
-    (V)->row(43)     += Eigen::Vector3d(0.0, 0.0, 30.0); \
-*/
 
 #define SAVE_FRAMES 1
 
@@ -43,7 +35,6 @@ inline void add_F_ext_internal(Eigen::MatrixXd &_forces, int step) {
     // Substract gravity :
     Eigen::RowVector3d gravity(0, -9.81, 0);
     _forces.rowwise() += gravity / 6;
-    // _forces.row(3) = Eigen::RowVector3d(0, 0, 0);
     // Wind only on vertex 42
     Eigen::RowVector3d wind(0, 50, 0);
     _forces.row(0) += wind;

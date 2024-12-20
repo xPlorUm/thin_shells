@@ -6,7 +6,7 @@
 #include <igl/unproject_onto_mesh.h>
 #include "DiscreteShell.h"
 #include <iostream>
-#include <filesystem> // Add this line
+#include <filesystem>
 
 #include <memory>
 #include <utility>
@@ -16,15 +16,13 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb/stb_image_write.h"
 
-//activate this for alternate UI (easier to debug but no interactive updates, turn this OFF for your report)
-//#define UPDATE_ONLY_ON_UP
 
 #include <string.h>
 
 std::string PATH = "../data/";
-//string file = "paper-plane-subd.off";
+// string file = "paper-plane-subd.off";
 // std::string file = "twisted.off";
-//std::string file = "woody-hi.off";
+// std::string file = "woody-hi.off";
 std::string file = "rectangle_upsampled_4.off";
 
 using namespace std;
@@ -33,7 +31,7 @@ using Viewer = igl::opengl::glfw::Viewer;
 
 Viewer viewer;
 //vertex array, #V x3
-Eigen::MatrixXd V(0, 3), V_original(0, 3); //V: Vertices which are to be changed temporarily during animation
+Eigen::MatrixXd V(0, 3); //V: Vertices which are to be changed temporarily during animation
 //face array, #F x3
 Eigen::MatrixXi F(0, 3);
 
@@ -82,7 +80,6 @@ bool load_mesh(string filename) {
     viewer.data().clear();
     viewer.data().set_mesh(V, F);
     viewer.core().align_camera_center(V);
-    V_original = V;
     handle_id.setConstant(V.rows(), 1, -1);
     selected_v.resize(0, 1);
     return true;

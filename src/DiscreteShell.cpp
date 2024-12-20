@@ -298,10 +298,10 @@ DiscreteShell::addBendingForcesAndHessianTo_internal(Eigen::MatrixXd &bending_fo
         // Variables associated with the edge's vertices
         Eigen::Index edge_idx = element.handle;
 
-        Eigen::RowVector3<T> opp0 = element.variables(
-                deformedMesh.F(deformedMesh.EF(edge_idx, 0), deformedMesh.EI(edge_idx, 0)));
-        Eigen::RowVector3<T> opp1 = element.variables(
-                deformedMesh.F(deformedMesh.EF(edge_idx, 1), deformedMesh.EI(edge_idx, 1)));
+        if (deformedMesh.EF(edge_idx, 1) == -1 || deformedMesh.EF(edge_idx, 0) == -1) { //boundary edge
+            return 0.0f;
+        }
+
         Eigen::RowVector3<T> v0 = element.variables(deformedMesh.uE(edge_idx, 0));
         Eigen::RowVector3<T> v1 = element.variables(deformedMesh.uE(edge_idx, 1));
 
